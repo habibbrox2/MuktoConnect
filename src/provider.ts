@@ -357,8 +357,10 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       } catch (error) {
         throw this.toStreamError(error, token, `POST ${url}`);
       }
+      this.log(`${this.spec.displayName}: POST ${url} (model=${target.info.id})`);
       if (!response.ok) {
         const text = await response.text().catch(() => '');
+        this.log(`${this.spec.displayName}: HTTP ${response.status} ${response.statusText} - ${text.slice(0, 200)}`);
         throw new HttpError(
           `POST ${url} -> ${response.status} ${response.statusText}`,
           response.status,
@@ -369,7 +371,9 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       if (!response.body) {
         throw new HttpError(`POST ${url}: empty response body`, undefined);
       }
+      this.log(`${this.spec.displayName}: streaming response started`);
       await this.consume(response.body, progress, token);
+      this.log(`${this.spec.displayName}: streaming response ended`);
     } finally {
       clearTimeout(timer);
       cancelSubscription.dispose();
@@ -464,12 +468,18 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     };
 
     try {
+      let chunkCount = 0;
       while (!token.isCancellationRequested) {
         const { done, value } = await reader.read();
         if (done) {
           break;
         }
-        const payloads = parser.push(decoder.decode(value, { stream: true }));
+        chunkCount++;
+        const decoded = decoder.decode(value, { stream: true });
+        if (chunkCount <= 3) {
+          this.log(`Stream chunk ${chunkCount}: ${decoded.slice(0, 100)}`);
+        }
+        const payloads = parser.push(decoded);
         for (const payload of payloads) {
           if (!handlePayload(payload)) {
             return;
@@ -482,6 +492,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       for (const index of [...buffers.keys()]) {
         emitBuffered(index, false);
       }
+      this.log(`Stream ended with ${chunkCount} chunks`);
     } finally {
       reader.releaseLock();
     }

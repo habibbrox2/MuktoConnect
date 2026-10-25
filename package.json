@@ -80,6 +80,11 @@
         "command": "muktoconnect.clearPromotedModel",
         "title": "Clear Auto-Switched Model",
         "category": "MuktoConnect"
+      },
+      {
+        "command": "muktoconnect.checkForUpdates",
+        "title": "Check for Updates",
+        "category": "MuktoConnect"
       }
     ],
     "configuration": {

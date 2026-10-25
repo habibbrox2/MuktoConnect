@@ -37,6 +37,43 @@ export function activate(context: vscode.ExtensionContext): void {
       log('Auto-switched model cleared for all providers.');
     }),
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('muktoconnect.checkForUpdates', async () => {
+      try {
+        const response = await fetch('https://api.github.com/repos/habibbrox2/MuktoConnect/releases/latest');
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json() as { tag_name: string; html_url: string };
+        const currentVersion = vscode.extensions.getExtension('habibbrox2.muktoconnect')?.packageJSON.version || '0.0.0';
+        const latestVersion = data.tag_name.replace(/^v/, '');
+        if (latestVersion === currentVersion) {
+          vscode.window.showInformationMessage('MuktoConnect is up to date.');
+        } else {
+          const choice = await vscode.window.showInformationMessage(
+            `MuktoConnect ${latestVersion} is available (current: ${currentVersion})`,
+            'Download',
+            'View Release',
+          );
+          if (choice === 'Download') {
+            vscode.env.openExternal(vscode.Uri.parse(data.html_url));
+          } else if (choice === 'View Release') {
+            vscode.env.openExternal(vscode.Uri.parse(data.html_url));
+          }
+        }
+        log(`Update check: current=${currentVersion}, latest=${latestVersion}`);
+      } catch (error) {
+        vscode.window.showErrorMessage(`Failed to check for updates: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }),
+  );
+  // Check for updates on activation (once per day)
+  const lastCheck = context.globalState.get<number>('muktoconnect.lastUpdateCheck', 0);
+  const now = Date.now();
+  if (now - lastCheck > 24 * 60 * 60 * 1000) {
+    context.globalState.update('muktoconnect.lastUpdateCheck', now);
+    vscode.commands.executeCommand('muktoconnect.checkForUpdates');
+  }
 }
 
 function managementCommand(vendor: VendorId): string {
