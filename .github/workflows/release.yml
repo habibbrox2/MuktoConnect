@@ -20,6 +20,12 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Update package version from tag
+        run: |
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          npm version $TAG_VERSION --no-git-tag-version --allow-same-version
+          echo "Version set to $TAG_VERSION"
+
       - name: Install dependencies
         run: npm ci
 
@@ -46,5 +52,7 @@ jobs:
           files: |
             *.vsix
           generate_release_notes: true
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
