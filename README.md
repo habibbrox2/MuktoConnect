@@ -1,5 +1,7 @@
 # MuktoConnect
 
+![MuktoConnect Banner](assets/logo-dark.png)
+
 **Custom AI providers and models for GitHub Copilot Chat.**
 
 MuktoConnect (মুক্তসংযোগ) connects custom AI providers to GitHub Copilot Chat as first-class models — including Agent mode — using the Language Model Chat Provider API. It streams responses, supports tool calling, and automatically retries with exponential backoff and fails over to alternative models when providers fail.
