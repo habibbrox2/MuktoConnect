@@ -25,6 +25,18 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand('muktoconnect.showLogs', () => output.show(true)),
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('muktoconnect.clearPromotedModel', () => {
+      for (const spec of VENDORS) {
+        const provider = registry.get(spec.id);
+        if (provider) {
+          provider.clearPromoted();
+        }
+      }
+      vscode.window.showInformationMessage('MuktoConnect: auto-switched model cleared.');
+      log('Auto-switched model cleared for all providers.');
+    }),
+  );
 }
 
 function managementCommand(vendor: VendorId): string {

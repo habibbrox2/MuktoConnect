@@ -72,6 +72,10 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     this.changeEmitter.fire();
   }
 
+  clearPromoted(): void {
+    this.promoted = undefined;
+  }
+
   // ---------------------------------------------------------------- discovery
 
   async provideLanguageModelChatInformation(
@@ -115,7 +119,16 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     }
 
     const ids = dedupe([...settings.modelIds, ...discovered]);
-    const infos = ids.map((id) => this.toModelInformation(id));
+    // Sort free models first
+    const sortedIds = [...ids].sort((a, b) => {
+      const aFree = /free/i.test(a) ? 1 : 0;
+      const bFree = /free/i.test(b) ? 1 : 0;
+      if (aFree !== bFree) {
+        return bFree - aFree;
+      }
+      return a.localeCompare(b);
+    });
+    const infos = sortedIds.map((id) => this.toModelInformation(id));
     this.cache = infos;
     this.log(`${this.spec.displayName}: exposing ${infos.length} model(s).`);
     return infos;
@@ -123,13 +136,14 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
 
   private toModelInformation(id: string): vscode.LanguageModelChatInformation {
     const vendor = this.spec.displayName;
+    const settings = readVendorSettings(this.spec);
     return {
       id,
       name: id,
       family: this.vendor,
       version: '1.0.0',
-      tooltip: `${vendor} · ${id}`,
-      detail: vendor,
+      tooltip: `${vendor} • ${id} • ${settings.baseUrl}`,
+      detail: `${vendor} • ${settings.baseUrl}`,
       maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       capabilities: { imageInput: false, toolCalling: true },
@@ -253,7 +267,15 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
             this.promoted = undefined; // demote a promoted model that just failed
           }
           if (kind === 'retry' && attempt < maxAttempts) {
-            await sleep(backoffDelay(attempt, retry.baseDelayMs));
+            let delay = backoffDelay(attempt, retry.baseDelayMs);
+            if (error instanceof HttpError && error.status === 429) {
+              const retryAfter = error.getRetryAfterMs();
+              if (retryAfter && retryAfter > 0) {
+                delay = Math.min(Math.max(retryAfter, delay), 60000);
+                this.log(`${this.spec.displayName}: using Retry-After ${Math.round(delay/1000)}s for rate limit.`);
+              }
+            }
+            await sleep(delay);
             continue;
           }
           break; // move on to the next fallback model
@@ -341,6 +363,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
           `POST ${url} -> ${response.status} ${response.statusText}`,
           response.status,
           text.slice(0, 800),
+          response.headers,
         );
       }
       if (!response.body) {

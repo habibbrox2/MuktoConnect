@@ -75,6 +75,11 @@
         "command": "muktoconnect.showLogs",
         "title": "Show Provider Logs",
         "category": "MuktoConnect"
+      },
+      {
+        "command": "muktoconnect.clearPromotedModel",
+        "title": "Clear Auto-Switched Model",
+        "category": "MuktoConnect"
       }
     ],
     "configuration": {

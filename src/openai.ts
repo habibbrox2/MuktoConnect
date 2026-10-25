@@ -32,9 +32,32 @@ export class HttpError extends Error {
     message: string,
     readonly status?: number,
     readonly body?: string,
+    readonly headers?: Headers,
   ) {
     super(message);
     this.name = 'HttpError';
+  }
+
+  getRetryAfterMs(): number | undefined {
+    if (!this.headers) {
+      return undefined;
+    }
+    const retryAfter = this.headers.get('retry-after') || this.headers.get('Retry-After');
+    if (!retryAfter) {
+      return undefined;
+    }
+    // Try as seconds
+    const seconds = Number(retryAfter);
+    if (!Number.isNaN(seconds) && seconds >= 0) {
+      return Math.round(seconds * 1000);
+    }
+    // Try as HTTP date
+    const date = Date.parse(retryAfter);
+    if (!Number.isNaN(date)) {
+      const diff = date - Date.now();
+      return diff > 0 ? Math.round(diff) : undefined;
+    }
+    return undefined;
   }
 }
 
