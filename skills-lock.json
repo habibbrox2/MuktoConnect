@@ -1,0 +1,335 @@
+{
+  "version": 1,
+  "skills": {
+    "agentic-actions-auditor": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/agentic-actions-auditor/SKILL.md",
+      "computedHash": "37231a99cb9aff9b731da1e66549d55ffa1ca616b68ed624087178cc3b748df8"
+    },
+    "agents-md-improver": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/agents-md-improver/SKILL.md",
+      "computedHash": "16d43b075261a3a704f418e41450d349c1e7f1472f62d36eecd9e36c8869d842"
+    },
+    "agents-md-revise": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/agents-md-revise/SKILL.md",
+      "computedHash": "30bd1a6d7f3dad872b6ebd803d4a8a1abc53ec76af427d5fbc9e3821b0c43ef1"
+    },
+    "ai-slop": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/ai-slop/SKILL.md",
+      "computedHash": "262342a8a2d862fac3f7fb4aa3de63c11c032ee3ab5ddb7904f09d03bf2f7011"
+    },
+    "code-architect": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/code-architect/SKILL.md",
+      "computedHash": "b6af6f75234878630d3a0522a35fb0a18ef63991850361862a18a17d71b3625f"
+    },
+    "code-explorer": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/code-explorer/SKILL.md",
+      "computedHash": "e464a26fc89b5762fd24f5364c911ddcf34ba578c959ff5368cf2f658bb4c7eb"
+    },
+    "code-quality": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/code-quality/SKILL.md",
+      "computedHash": "3bc0aacb3c60dc77abf9ff061475616b6843cf8ef05559005d0f0b3c8e292108"
+    },
+    "code-review": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/code-review/SKILL.md",
+      "computedHash": "fc8ff2170aedccf68c8011e05fba4cb8bc447699e789c463a3829d056cdd385f"
+    },
+    "code-reviewer": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/code-reviewer/SKILL.md",
+      "computedHash": "5107bfe103eecff861c57861d91703ec4a19863f5e68466fb3ac5a1293a691da"
+    },
+    "codeql": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/codeql/SKILL.md",
+      "computedHash": "30635eeb8d982540332ac79f0e12d62a19c175888e6df2c0b4fcac1528ab12ae"
+    },
+    "design-patterns": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/design-patterns/SKILL.md",
+      "computedHash": "802f15cb4246a33f1573bb43969198b850a59919fbbb2d774bdc39ffb327637b"
+    },
+    "differential-review": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/differential-review/SKILL.md",
+      "computedHash": "3ef6de8b82be914f157bcadb6b58fc7218023e12ab83a3c96731e6dbf6ec0386"
+    },
+    "feature-dev": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/feature-dev/SKILL.md",
+      "computedHash": "cf2d90dcbcb4ab610f2d1f182e47afa34efc99f269a9d4f419b9781dad4637d0"
+    },
+    "fp-check": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/fp-check/SKILL.md",
+      "computedHash": "8a172110054a1e436545892810539bb2493522f798130b5b90db16d8219c71b9"
+    },
+    "frontend-design": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "46fdeeb0a106ffd8507b39c487b44296f6b3730a83ca051080dc6e6ec2cfd512"
+    },
+    "hf-cli": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/hf-cli/SKILL.md",
+      "computedHash": "c352187f3e146c32d19c8dffa7325b1e4a22ce990cea15e6061f2705ca7cd439"
+    },
+    "hf-cloud-aws-context-discovery": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/hf-cloud-aws-context-discovery/SKILL.md",
+      "computedHash": "d4a41172b6bcae12e7df3307df3e03ff66551a6f8063d628326483250d47d5ef"
+    },
+    "hf-cloud-python-env-setup": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/hf-cloud-python-env-setup/SKILL.md",
+      "computedHash": "76ba9f090122a390f15b6fe987f75b96b703fd7c880c05198c1beadfb7fe5e2a"
+    },
+    "hf-cloud-sagemaker-deployment-planner": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/hf-cloud-sagemaker-deployment-planner/SKILL.md",
+      "computedHash": "092ba8bf3525c6e67b3e4534c2220f71914898180958a0872abaaf5eb66c8ceb"
+    },
+    "hf-cloud-sagemaker-iam-preflight": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/hf-cloud-sagemaker-iam-preflight/SKILL.md",
+      "computedHash": "733f0d783604fe13e4684bb39e542de74ea1658c932757a6684053202457137e"
+    },
+    "hf-cloud-sagemaker-production-defaults": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/hf-cloud-sagemaker-production-defaults/SKILL.md",
+      "computedHash": "f893410cda9fc95994a72bd5c95afd56eeeb401c7200ae1b67af9d04353478c6"
+    },
+    "hf-cloud-serving-image-selection": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/hf-cloud-serving-image-selection/SKILL.md",
+      "computedHash": "e0d55e2c18ba15c7f70f61b96891c226c029c0aa5f88901d0ef41c1cfaaee033"
+    },
+    "hf-mem": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/hf-mem/SKILL.md",
+      "computedHash": "814aea89e4f2d00b9468db8b0f74d6e93ad5f29dda2adcf0f9474f4ec3cd1295"
+    },
+    "huggingface-best": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-best/SKILL.md",
+      "computedHash": "b7e37c18d28aeac5b06a40b7972bfb15f25ac2cc040c4961e06bf8072be83c94"
+    },
+    "huggingface-community-evals": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-community-evals/SKILL.md",
+      "computedHash": "157f43b019f605bb806a1e6afdfa947c8913717b65210d3e0b5eb3910f7ec6a6"
+    },
+    "huggingface-datasets": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-datasets/SKILL.md",
+      "computedHash": "387449ddc3b63955b2877171396d0f5fcd59ac7bdc34b3b10bba48d448b37d8b"
+    },
+    "huggingface-gradio": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-gradio/SKILL.md",
+      "computedHash": "733983ceaf07328d4620037a7f773b692d8f699162df988b74b157631402c098"
+    },
+    "huggingface-llm-trainer": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-llm-trainer/SKILL.md",
+      "computedHash": "eb1caca2d64e376e77c90d424c289161213c7f824bd7647137134613b5743138"
+    },
+    "huggingface-local-models": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-local-models/SKILL.md",
+      "computedHash": "423211abda59076449baa42e41f765c9eee2fc5967ef1224bebd4bd9b2cb6361"
+    },
+    "huggingface-lora-space-builder": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-lora-space-builder/SKILL.md",
+      "computedHash": "7ba88d99645f0b0147bee5c361f8ae43c58d40814ce6435d19a1268a639b1a67"
+    },
+    "huggingface-paper-publisher": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-paper-publisher/SKILL.md",
+      "computedHash": "6cbe0dc5f0fd580fd5a485c936bb49ddd544ac0d1d0e2f612e72f43571fbd415"
+    },
+    "huggingface-papers": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-papers/SKILL.md",
+      "computedHash": "94f83c0e544b9032eb4643183e6b04eac3ab73288721c806a98ca5207342b6bf"
+    },
+    "huggingface-spaces": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-spaces/SKILL.md",
+      "computedHash": "3e6ff75e0990d4f96fc92484b1d608908c3e0f108931d0a9c3f7adcc2edf1c4e"
+    },
+    "huggingface-tool-builder": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-tool-builder/SKILL.md",
+      "computedHash": "3090a1bb6fe338ab4079f876839d164cfd9ef8599ff0243b0604890c5453931d"
+    },
+    "huggingface-trackio": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-trackio/SKILL.md",
+      "computedHash": "dd6eea153d85bb3ad232fadd0b1351f4b2ded73bb973872290c90f1db34c5c5b"
+    },
+    "huggingface-vision-trainer": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-vision-trainer/SKILL.md",
+      "computedHash": "2ef4250e31dc1940af57f98e0d2c9bef8a9ed4d319f69f8e29eec40c549b987c"
+    },
+    "huggingface-zerogpu": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/huggingface-zerogpu/SKILL.md",
+      "computedHash": "d68ab600948f886b370e4849f825b15e0ca112af857a5e69068c0da62d0e0532"
+    },
+    "humanizer": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/humanizer/SKILL.md",
+      "computedHash": "73e1d124fd7a3d1dcc90ed5c149fa0391d142885188cdfafce328a06e495da9c"
+    },
+    "insecure-defaults": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/insecure-defaults/SKILL.md",
+      "computedHash": "88de52f828ccaa10f30b316cb9b9583fa4adba7a1eaaa99d3204567d1419f2d7"
+    },
+    "mcp-builder": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/mcp-builder/SKILL.md",
+      "computedHash": "074d8a29e6a75096ce6b5f21636209c5455276f58c9b614f6a9f60c619935cc7"
+    },
+    "paper-summarizer": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/paper-summarizer/SKILL.md",
+      "computedHash": "14940527da6937de05d675c751adeeac6ccdc02b27af9fdb7de93a2d0a6af1e0"
+    },
+    "sarif-parsing": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/sarif-parsing/SKILL.md",
+      "computedHash": "3f0d2a200b836566c1bbb0f08de92d682673eeb52a6cc1474f255b8be8016b0c"
+    },
+    "security-review": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/security-review/SKILL.md",
+      "computedHash": "744b89d2c022fbe132564b51b1b6275d24e893c793eaa026ea94f16ae7c9a3db"
+    },
+    "security-threat-model": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/security-threat-model/SKILL.md",
+      "computedHash": "04e915a478888bf2bb95f2b262b19779773fbdce4e99d8c32c487f39abd8df93"
+    },
+    "semgrep": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/semgrep/SKILL.md",
+      "computedHash": "0ec9e9e07a20a66d049852270fe30136f764979612022e2e34b8b5e62cf8b23e"
+    },
+    "semgrep-rule-creator": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/semgrep-rule-creator/SKILL.md",
+      "computedHash": "823ad15227a7f256f78d1c6b8ded6b703151854942cb08f510db5c88149be8db"
+    },
+    "semgrep-rule-variant-creator": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/semgrep-rule-variant-creator/SKILL.md",
+      "computedHash": "4e03ef5e9c7fd10b4df84fd1c9a625fd18475e342542bf39ce1b11b3313de571"
+    },
+    "sharp-edges": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/sharp-edges/SKILL.md",
+      "computedHash": "f2a9c7cf2c8f52b07517f2aa1c740a20e66ad621400b48a4ebe5387b27fe414c"
+    },
+    "skill-creator": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/skill-creator/SKILL.md",
+      "computedHash": "3cbdde28bf1eeaa86cd4325ba0c1cba2d4cf1d3e80daad6c58957c755e5eb887"
+    },
+    "supply-chain-risk-auditor": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/supply-chain-risk-auditor/SKILL.md",
+      "computedHash": "0385690bcf7ca73c106f6f23c30319c9675a242b55916a005c78573327134476"
+    },
+    "train-sentence-transformers": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/train-sentence-transformers/SKILL.md",
+      "computedHash": "36a87a8a760ddb6d136670ba26df510fb2ed9727e80c7ce12dfdf3c52e5ac67d"
+    },
+    "transformers-js": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/transformers-js/SKILL.md",
+      "computedHash": "07ba72f926edd0310e2ef5b697753b68e8123be471d80d0bf67946208ffc328f"
+    },
+    "trl-training": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/trl-training/SKILL.md",
+      "computedHash": "aa81aa107d54a7b8ba8b80dd8af7e60efce827f7eb89e487cb092ccfb6312383"
+    },
+    "variant-analysis": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/variant-analysis/SKILL.md",
+      "computedHash": "c2feace94d47f0016b6782ad6b1207b5b5256bf35e4c9b66a33f1b7067d12d9e"
+    },
+    "vuln-report": {
+      "source": "waybarrios/opencode-power-pack",
+      "sourceType": "github",
+      "skillPath": "skills/vuln-report/SKILL.md",
+      "computedHash": "b72ebad1a6451acf777c9ceb18911858ce06d15f774f4bdd12b1fedd00b5ad5e"
+    }
+  }
+}

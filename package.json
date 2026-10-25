@@ -1,0 +1,233 @@
+{
+  "name": "muktoconnect",
+  "displayName": "MuktoConnect — Custom AI Providers for Copilot Chat",
+  "description": "Connect custom AI providers and models to GitHub Copilot Chat: MuktoDwar local gateway, Kilo Gateway, OpenCode Console / Zen and any OpenAI-compatible endpoint — with automatic retry and model fallback.",
+  "version": "0.1.0",
+  "publisher": "habibbrox2",
+  "license": "MIT",
+  "icon": "assets/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/habibbrox2/MuktoConnect.git"
+  },
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "keywords": [
+    "copilot",
+    "muktodwar",
+    "kilo",
+    "opencode",
+    "openai-compatible",
+    "byok"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "muktodwar",
+        "displayName": "MuktoDwar",
+        "managementCommand": "muktoconnect.manageMuktoDwar"
+      },
+      {
+        "vendor": "kilo",
+        "displayName": "Kilo Gateway",
+        "managementCommand": "muktoconnect.manageKilo"
+      },
+      {
+        "vendor": "opencode",
+        "displayName": "OpenCode Console / Zen",
+        "managementCommand": "muktoconnect.manageOpenCode"
+      },
+      {
+        "vendor": "custom",
+        "displayName": "Custom OpenAI-Compatible",
+        "managementCommand": "muktoconnect.manageCustom"
+      }
+    ],
+    "commands": [
+      {
+        "command": "muktoconnect.manageMuktoDwar",
+        "title": "Manage MuktoDwar Provider",
+        "category": "MuktoConnect"
+      },
+      {
+        "command": "muktoconnect.manageKilo",
+        "title": "Manage Kilo Gateway Provider",
+        "category": "MuktoConnect"
+      },
+      {
+        "command": "muktoconnect.manageOpenCode",
+        "title": "Manage OpenCode Console / Zen Provider",
+        "category": "MuktoConnect"
+      },
+      {
+        "command": "muktoconnect.manageCustom",
+        "title": "Manage Custom OpenAI-Compatible Provider",
+        "category": "MuktoConnect"
+      },
+      {
+        "command": "muktoconnect.showLogs",
+        "title": "Show Provider Logs",
+        "category": "MuktoConnect"
+      }
+    ],
+    "configuration": {
+      "title": "MuktoConnect",
+      "properties": {
+        "muktoconnect.muktodwar.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8787/v1",
+          "description": "MuktoDwar gateway base URL (loopback only). Chat requests go to <baseUrl>/chat/completions."
+        },
+        "muktoconnect.muktodwar.modelsUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8787/v1/models",
+          "description": "Model list URL for MuktoDwar. Leave empty to use <baseUrl>/models."
+        },
+        "muktoconnect.muktodwar.modelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "mukto-auto/free"
+          ],
+          "description": "Model IDs always exposed for MuktoDwar. The default alias resolves to any free model you allowlisted."
+        },
+        "muktoconnect.muktodwar.fallbackModels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Ordered fallback chain when the selected MuktoDwar model fails: plain model IDs for this provider, or vendor:modelId for another provider (e.g. kilo:openai/gpt-5.4). The gateway already routes and fails over between its own providers."
+        },
+        "muktoconnect.kilo.baseUrl": {
+          "type": "string",
+          "default": "https://ai-gateway.kilo.ai/api/v1",
+          "description": "Kilo Gateway OpenAI-compatible base URL. Chat requests go to <baseUrl>/chat/completions."
+        },
+        "muktoconnect.kilo.modelsUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Model list URL for Kilo Gateway. Leave empty to use <baseUrl>/models."
+        },
+        "muktoconnect.kilo.modelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra model IDs to expose for Kilo Gateway (always listed, even when the models endpoint is unreachable)."
+        },
+        "muktoconnect.kilo.fallbackModels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "muktodwar:mukto-auto/free"
+          ],
+          "description": "Ordered fallback chain when the selected Kilo model fails: plain model IDs for this provider, or vendor:modelId (e.g. opencode:kimi-k3)."
+        },
+        "muktoconnect.opencode.baseUrl": {
+          "type": "string",
+          "default": "https://opencode.ai/inference/openai/v1",
+          "description": "OpenCode Console / Zen OpenAI-compatible base URL. Chat requests go to <baseUrl>/chat/completions."
+        },
+        "muktoconnect.opencode.modelsUrl": {
+          "type": "string",
+          "default": "https://opencode.ai/inference/v1/models",
+          "description": "Model list URL for OpenCode Console / Zen (differs from the chat base URL). Leave empty to use <baseUrl>/models."
+        },
+        "muktoconnect.opencode.modelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Extra model IDs to expose for OpenCode Console / Zen."
+        },
+        "muktoconnect.opencode.fallbackModels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "muktodwar:mukto-auto/free"
+          ],
+          "description": "Ordered fallback chain when the selected OpenCode model fails: plain model IDs for this provider, or vendor:modelId (e.g. kilo:openai/gpt-5.4)."
+        },
+        "muktoconnect.custom.baseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL of your OpenAI-compatible endpoint (e.g. http://localhost:11434/v1). Required for the Custom provider."
+        },
+        "muktoconnect.custom.modelsUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Model list URL for the custom provider. Leave empty to use <baseUrl>/models."
+        },
+        "muktoconnect.custom.modelIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Model IDs to expose for the custom provider."
+        },
+        "muktoconnect.custom.fallbackModels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Ordered fallback chain when the selected custom model fails: plain model IDs for this provider, or vendor:modelId (e.g. muktodwar:mukto-auto/free)."
+        },
+        "muktoconnect.retry.maxAttempts": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "description": "Attempts per model on retryable failures (network errors, 408/409/425/429/5xx) before moving to the next fallback model."
+        },
+        "muktoconnect.retry.baseDelayMs": {
+          "type": "number",
+          "default": 500,
+          "minimum": 0,
+          "description": "Base delay for exponential backoff between retries: doubles each attempt plus jitter."
+        },
+        "muktoconnect.retry.autoSwitch": {
+          "type": "boolean",
+          "default": true,
+          "description": "After a successful automatic switch, keep using the promoted model for later requests until it fails."
+        },
+        "muktoconnect.request.timeoutMs": {
+          "type": "number",
+          "default": 120000,
+          "minimum": 1000,
+          "description": "Timeout for a single attempt against a model endpoint."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile",
+    "brand:build": "node scripts/build-brand.mjs",
+    "test:unit": "npm run compile && node test/unit-tests.js"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "@types/node": "^20.14.0",
+    "@types/vscode": "1.104.0",
+    "sharp": "^0.35.5",
+    "typescript": "^5.6.0"
+  }
+}
