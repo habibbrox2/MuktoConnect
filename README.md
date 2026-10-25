@@ -6,7 +6,9 @@
 
 MuktoConnect (মুক্তসংযোগ) connects custom AI providers to GitHub Copilot Chat as first-class models — including Agent mode — using the Language Model Chat Provider API. It streams responses, supports tool calling, and automatically retries with exponential backoff and fails over to alternative models when providers fail.
 
-[![GitHub](https://img.shields.io/badge/GitHub-habibbrox2/MuktoConnect-blue?logo=github)](https://github.com/habibbrox2/MuktoConnect)
+[![GitHub](https://img.shields.io/badge/GitHub-habibbrox2/MuktoConnect-blue?logo=github)](https://github.com/habibbrox2/MuktoConnect) [![Release](https://img.shields.io/github/v/release/habibbrox2/MuktoConnect?logo=github)](https://github.com/habibbrox2/MuktoConnect/releases/latest)
+
+**[Download Latest Release](https://github.com/habibbrox2/MuktoConnect/releases/latest)**
 
 A sister project of [MuktoDwar](https://github.com/habibbrox2/MuktoDwar). This extension only talks to providers as a client — no MuktoDwar source code is included.
 
