@@ -48,6 +48,11 @@
         "vendor": "custom",
         "displayName": "Custom OpenAI-Compatible",
         "managementCommand": "muktoconnect.manageCustom"
+      },
+      {
+        "vendor": "muktoconnect",
+        "displayName": "MuktoConnect (All)",
+        "managementCommand": "muktoconnect.manageAll"
       }
     ],
     "commands": [

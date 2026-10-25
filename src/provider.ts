@@ -111,6 +111,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     let discovered: string[] = [];
     try {
       discovered = await this.fetchModelIds(settings.modelsUrl, apiKey, settings.baseUrl);
+      this.log(`${this.spec.displayName}: discovered ${discovered.length} models from ${settings.modelsUrl}`);
     } catch (error) {
       this.log(`${this.spec.displayName}: model list failed (${describe(error)}), falling back to configured ids.`);
     }
@@ -293,7 +294,8 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     }
     this.log(`${this.spec.displayName}: request succeeded on ${target.vendor}:${target.info.id}.`);
     if (readRetrySettings().autoSwitch) {
-      this.promoted = target.info.id;
+      // Store full reference with vendor prefix for cross-provider fallback
+      this.promoted = target.vendor !== this.vendor ? `${target.vendor}:${target.info.id}` : target.info.id;
       vscode.window.setStatusBarMessage(
         `$(check) MuktoConnect switched to ${target.info.id} (${target.vendor})`,
         6000,
@@ -476,9 +478,6 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         }
         chunkCount++;
         const decoded = decoder.decode(value, { stream: true });
-        if (chunkCount <= 3) {
-          this.log(`Stream chunk ${chunkCount}: ${decoded.slice(0, 100)}`);
-        }
         const payloads = parser.push(decoded);
         for (const payload of payloads) {
           if (!handlePayload(payload)) {

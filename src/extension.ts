@@ -45,9 +45,15 @@ export function activate(context: vscode.ExtensionContext): void {
           throw new Error(`HTTP ${response.status}`);
         }
         const data = await response.json() as { tag_name: string; html_url: string };
+        if (!data.tag_name || !data.html_url) {
+          throw new Error('Invalid release metadata');
+        }
         const currentVersion = vscode.extensions.getExtension('habibbrox2.muktoconnect')?.packageJSON.version || '0.0.0';
-        const latestVersion = data.tag_name.replace(/^v/, '');
-        if (latestVersion === currentVersion) {
+        const latestVersion = data.tag_name.replace(/^v/, '').trim();
+        if (!isValidSemver(latestVersion)) {
+          throw new Error('Invalid version tag');
+        }
+        if (compareSemver(latestVersion, currentVersion) <= 0) {
           vscode.window.showInformationMessage('MuktoConnect is up to date.');
         } else {
           const choice = await vscode.window.showInformationMessage(
@@ -74,6 +80,40 @@ export function activate(context: vscode.ExtensionContext): void {
     context.globalState.update('muktoconnect.lastUpdateCheck', now);
     vscode.commands.executeCommand('muktoconnect.checkForUpdates');
   }
+}
+
+function isValidSemver(version: string): boolean {
+  return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version);
+}
+
+function parseSemver(version: string): [number, number, number] | null {
+  if (!isValidSemver(version)) {
+    return null;
+  }
+  const core = version.split('-')[0].split('+')[0];
+  const parts = core.split('.').map((p) => parseInt(p, 10));
+  if (parts.length !== 3 || parts.some((p) => Number.isNaN(p))) {
+    return null;
+  }
+  return [parts[0], parts[1], parts[2]];
+}
+
+function compareSemver(a: string, b: string): number {
+  const pa = parseSemver(a);
+  const pb = parseSemver(b);
+  if (!pa || !pb) {
+    // Fallback to string comparison if parsing fails
+    if (a === b) {
+      return 0;
+    }
+    return a > b ? 1 : -1;
+  }
+  for (let i = 0; i < 3; i++) {
+    if (pa[i] !== pb[i]) {
+      return pa[i] > pb[i] ? 1 : -1;
+    }
+  }
+  return 0;
 }
 
 function managementCommand(vendor: VendorId): string {

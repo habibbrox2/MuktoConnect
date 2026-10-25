@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 /** Providers contributed to Copilot Chat. */
-export type VendorId = 'muktodwar' | 'kilo' | 'opencode' | 'custom';
+export type VendorId = 'muktodwar' | 'kilo' | 'opencode' | 'custom' | 'muktoconnect';
 
 export interface VendorSpec {
   readonly id: VendorId;
