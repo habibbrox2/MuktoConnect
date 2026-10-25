@@ -2,7 +2,7 @@
   "name": "muktoconnect",
   "displayName": "MuktoConnect — Custom AI Providers for Copilot Chat",
   "description": "Connect custom AI providers and models to GitHub Copilot Chat: MuktoDwar local gateway, Kilo Gateway, OpenCode Console / Zen and any OpenAI-compatible endpoint — with automatic retry and model fallback.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "habibbrox2",
   "license": "MIT",
   "icon": "assets/icon.png",
