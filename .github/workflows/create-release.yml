@@ -82,6 +82,14 @@ jobs:
       - name: Package VSIX
         run: npx --yes @vscode/vsce package
 
+      - name: Upload VSIX as workflow artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: muktoconnect-vsix-${{ steps.version.outputs.version }}
+          path: "*.vsix"
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Publish to VS Code Marketplace (optional)
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
