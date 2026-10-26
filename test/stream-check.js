@@ -146,7 +146,7 @@ const server = http.createServer((req, res) => {
     if (scenario.requests === 1) {
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Partial answer ' } }] })}\n\n`);
-      setTimeout(() => res.destroy(), 10);
+      setTimeout(() => res.destroy(), 100);
       return;
     }
     sse(res, [
