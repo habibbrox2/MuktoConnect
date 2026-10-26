@@ -194,7 +194,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     if (apiKey) {
       headers.Authorization = `Bearer ${apiKey}`;
     }
-    const response = await fetch(url, { headers });
+    const response = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
     if (!response.ok) {
       throw new HttpError(`GET ${url} -> ${response.status}`, response.status);
     }
