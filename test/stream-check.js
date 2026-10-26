@@ -86,8 +86,12 @@ function sse(res, events) {
 }
 
 // one scenario at a time; the name selects how the server answers
-const scenario = { name: null };
+const scenario = { name: null, requests: 0 };
+const requestBodies = [];
 const server = http.createServer((req, res) => {
+  const requestChunks = [];
+  req.on('data', (chunk) => requestChunks.push(chunk));
+  req.on('end', () => { if (req.method === 'POST') requestBodies.push(Buffer.concat(requestChunks).toString('utf8')); });
   req.resume();
   const name = scenario.name;
   if (name === 'sse-ok') {
@@ -135,6 +139,26 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     res.write(': keep-alive\n\n');
     setTimeout(() => res.destroy(), 10);
+    return;
+  }
+  if (name === 'partial-truncated' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ data: [] }));
+    return;
+  }
+  if (name === 'partial-truncated') {
+    scenario.requests += 1;
+    if (scenario.requests === 1) {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Partial answer ' } }] })}\n\n`);
+      res.end();
+      return;
+    }
+    sse(res, [
+      JSON.stringify({ choices: [{ delta: { content: 'continued safely.' } }] }),
+      JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }),
+      '[DONE]',
+    ]);
     return;
   }
   if (name === 'toolcall-fragmented') {
@@ -213,6 +237,7 @@ function makeProvider(baseUrl, extra) {
   CONFIG.set('retry.maxAttempts', 1);
   CONFIG.set('retry.baseDelayMs', 10);
   CONFIG.set('retry.autoSwitch', false);
+  CONFIG.set('retry.autoContinue', overrides.autoContinue !== false);
   CONFIG.set('request.timeoutMs', overrides.timeoutMs || 5000);
   const registry = new ProviderRegistry();
   const provider = new OpenAICompatProvider('custom', spec, secretStorage, registry, (m) => logs.push(m));
@@ -341,6 +366,20 @@ async function check(route, label, fn) {
       return;
     }
     assert.fail(`resolved with ${parts.length} parts instead of throwing`);
+  });
+
+  await check('partial-truncated', 'text-only partial response automatically continues without repeating the partial text', async () => {
+    scenario.requests = 0;
+    requestBodies.length = 0;
+    const parts = await run(base);
+    const text = parts.map((part) => (part instanceof TextPart ? part.value : '')).join('');
+    assert.strictEqual(text, 'Partial answer continued safely.');
+    assert.strictEqual(scenario.requests, 2, 'expected initial request plus one continuation');
+    const body = JSON.parse(requestBodies[1]);
+    assert.strictEqual(body.messages[1].role, 'assistant');
+    assert.strictEqual(body.messages[1].content, 'Partial answer ');
+    assert.strictEqual(body.messages[2].role, 'user');
+    assert.match(body.messages[2].content, /Continue the previous answer/);
   });
 
   await check('stall', 'a stream that stalls past request.timeoutMs fails the attempt', async () => {

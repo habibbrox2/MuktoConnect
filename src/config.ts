@@ -92,6 +92,7 @@ export interface RetrySettings {
   readonly maxAttempts: number;
   readonly baseDelayMs: number;
   readonly autoSwitch: boolean;
+  readonly autoContinue: boolean;
   readonly timeoutMs: number;
 }
 
@@ -105,6 +106,7 @@ export function readRetrySettings(): RetrySettings {
     maxAttempts: Math.max(1, Math.floor(positiveOr(cfg.get<number>('retry.maxAttempts'), 3))),
     baseDelayMs: Math.max(0, positiveOr(cfg.get<number>('retry.baseDelayMs'), 500)),
     autoSwitch: cfg.get<boolean>('retry.autoSwitch') !== false,
+    autoContinue: cfg.get<boolean>('retry.autoContinue') !== false,
     timeoutMs: positiveOr(cfg.get<number>('request.timeoutMs'), 120000),
   };
 }

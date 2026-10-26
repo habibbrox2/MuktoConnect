@@ -60,6 +60,8 @@ interface StreamStats {
   payloads: number;
   /** Parts reported to VS Code (text or tool calls). */
   parts: number;
+  /** Whether the provider sent an explicit end-of-turn marker. */
+  completed: boolean;
   /** Body bytes, kept only while no payload has parsed (diagnostics + buffered completions). */
   raw: string;
 }
@@ -300,13 +302,33 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
           throw new Error('Request cancelled.');
         }
         attempt += 1;
+        let attemptText = '';
+        let attemptHasToolCall = false;
+        const attemptProgress: vscode.Progress<vscode.LanguageModelResponsePart> = {
+          report: (part) => {
+            if (part instanceof vscode.LanguageModelTextPart) {
+              attemptText += part.value;
+            } else if (part instanceof vscode.LanguageModelToolCallPart) {
+              attemptHasToolCall = true;
+            }
+            tracked.report(part);
+          },
+        };
         try {
-          await this.streamOnce(target, messages, options, tracked, token, retry.timeoutMs);
+          await this.streamOnce(target, messages, options, attemptProgress, token, retry.timeoutMs);
           this.noteSuccess(model, target);
           return;
         } catch (error) {
+          if (attemptText.length > 0 && !attemptHasToolCall && retry.autoContinue && !token.isCancellationRequested) {
+            this.log(
+              `${this.spec.displayName}: ${target.vendor}:${target.info.id} stream interrupted after partial text; attempting one continuation.`,
+            );
+            await this.streamOnce(target, messages, options, tracked, token, retry.timeoutMs, attemptText);
+            this.noteSuccess(model, target);
+            return;
+          }
           if (emitted) {
-            // Partial output already reached the chat; restarting would duplicate it.
+            // Once output is visible, never restart the full answer or switch models mid-turn.
             throw error;
           }
           const kind = classifyFailure(
@@ -367,11 +389,20 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
     token: vscode.CancellationToken,
     timeoutMs: number,
+    continuationText?: string,
   ): Promise<void> {
     const url = `${stripTrailingSlash(target.baseUrl)}/chat/completions`;
+    const requestMessages = toOpenAiMessages(messages);
+    if (continuationText) {
+      requestMessages.push({ role: 'assistant', content: continuationText });
+      requestMessages.push({
+        role: 'user',
+        content: 'Continue the previous answer from exactly where it stopped. Do not repeat any text already present. Continue with the next words only.',
+      });
+    }
     const body: Record<string, unknown> = {
       model: target.info.id,
-      messages: toOpenAiMessages(messages),
+      messages: requestMessages,
       stream: true,
     };
 
@@ -443,8 +474,17 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         `${this.spec.displayName}: streaming response ended ` +
           `(${stats.chunks} chunks, ${stats.payloads} payloads, ${stats.parts} parts)`,
       );
-      if (token.isCancellationRequested || stats.parts > 0) {
+      if (token.isCancellationRequested) {
         return;
+      }
+      if (stats.parts > 0) {
+        if (stats.completed) {
+          return;
+        }
+        throw new HttpError(
+          `POST ${url}: stream ended after partial output without a completion marker`,
+          undefined,
+        );
       }
       // A gateway that ignores `stream: true` answers with one JSON completion.
       if (stats.payloads === 0 && stats.raw.trim()) {
@@ -529,7 +569,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     const parser = new SseParser();
     const buffers = new Map<number, ToolCallBuffer>();
     const completed = new Set<number>();
-    const stats: StreamStats = { chunks: 0, payloads: 0, parts: 0, raw: '' };
+    const stats: StreamStats = { chunks: 0, payloads: 0, parts: 0, completed: false, raw: '' };
 
     const report = (part: vscode.LanguageModelResponsePart): void => {
       stats.parts += 1;
@@ -567,6 +607,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
 
     const handlePayload = (payload: string): boolean => {
       if (payload.trim() === '[DONE]') {
+        stats.completed = true;
         for (const index of [...buffers.keys()]) {
           emitBuffered(index, true);
         }
@@ -602,6 +643,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         // finish_reason / [DONE] / end of stream to flush.
       }
       if (delta.finishReason) {
+        stats.completed = true;
         for (const index of [...buffers.keys()]) {
           emitBuffered(index, true);
         }
