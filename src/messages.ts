@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import type { OpenAIMessage, OpenAIToolDefinition } from './openai';
 
+/** Maximum tool definitions sent to providers whose tool limit is 128. */
+export const MAX_TOOLS_PER_REQUEST = 128;
+
 function textOf(part: unknown): string {
   if (part instanceof vscode.LanguageModelTextPart) {
     return part.value;
@@ -97,7 +100,9 @@ export function toOpenAiTools(tools: readonly vscode.LanguageModelChatTool[] | u
   if (!tools || tools.length === 0) {
     return undefined;
   }
-  return tools.map((tool) => ({
+  // VS Code/Copilot can expose more tools than many compatible models accept.
+  // Cap silently at the model limit so the upstream request never exceeds it.
+  return tools.slice(0, MAX_TOOLS_PER_REQUEST).map((tool) => ({
     type: 'function' as const,
     function: {
       name: tool.name,
