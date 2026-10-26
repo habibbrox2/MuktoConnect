@@ -242,7 +242,34 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       },
     };
 
-    const refs = buildCandidateRefs(model.id, settings.fallbackModels, this.promoted, retry.autoSwitch);
+    // Only use fallback references belonging to currently eligible providers.
+    // Eligibility is re-evaluated per request so removed credentials cannot leave
+    // stale fallback targets active.
+    const eligibleRefs = new Set<string>();
+    for (const spec of VENDORS) {
+      const provider = this.registry.get(spec.id);
+      if (!provider) {
+        continue;
+      }
+      const ids = await provider.getEligibleFallbackModelIds();
+      for (const id of ids) {
+        eligibleRefs.add(spec.id === this.vendor ? id : `${spec.id}:${id}`);
+      }
+    }
+
+    const configuredFallbacks = settings.fallbackModels.filter((ref) => eligibleRefs.has(ref));
+    const dynamicFallbacks = [...eligibleRefs].filter((ref) => ref !== model.id);
+    const promoted = this.promoted && eligibleRefs.has(this.promoted) ? this.promoted : undefined;
+    if (this.promoted && !promoted) {
+      this.log(`${this.spec.displayName}: ignoring promoted model "${this.promoted}" because its provider is not currently eligible.`);
+      this.promoted = undefined;
+    }
+    const refs = buildCandidateRefs(
+      model.id,
+      dedupe([...configuredFallbacks, ...dynamicFallbacks]),
+      promoted,
+      retry.autoSwitch,
+    );
     const targets: { ref: string; target?: ResolvedTarget; error?: unknown }[] = [];
     for (const ref of refs) {
       try {
@@ -622,6 +649,52 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   }
 
   // ----------------------------------------------------------- fallback targets
+
+  /**
+   * Return model IDs that are safe to consider for fallback from this provider.
+   * Required credentials and the base URL are checked before model discovery.
+   */
+  async getEligibleFallbackModelIds(): Promise<string[]> {
+    const settings = readVendorSettings(this.spec);
+    if (!settings.baseUrl) {
+      return [];
+    }
+
+    const apiKey = await this.secrets.get(this.spec.secretKey);
+    if (this.spec.requiresKey && !apiKey) {
+      return [];
+    }
+
+    const cached = this.modelCache.get(this.spec.id);
+    if (cached !== undefined) {
+      return dedupe([...settings.modelIds, ...cached]);
+    }
+
+    const alreadyDiscovered = this.cache.map((entry) => entry.id);
+    if (alreadyDiscovered.length > 0) {
+      const ids = dedupe([...settings.modelIds, ...alreadyDiscovered]);
+      this.modelCache.set(this.spec.id, ids);
+      return ids;
+    }
+
+    try {
+      const discovered = await this.fetchModelIds(settings.modelsUrl, apiKey, settings.baseUrl);
+      const ids = dedupe([...settings.modelIds, ...discovered]);
+      // Cache empty results too, so a failing models endpoint is not hammered
+      // for every chat request. Refreshing the provider clears this cache.
+      this.modelCache.set(this.spec.id, ids);
+      this.log(`${this.spec.displayName}: fallback eligibility includes ${ids.length} model(s).`);
+      return ids;
+    } catch (error) {
+      const configuredIds = dedupe(settings.modelIds);
+      this.modelCache.set(this.spec.id, configuredIds);
+      this.log(
+        `${this.spec.displayName}: fallback model discovery failed (${describe(error)}); ` +
+          `using ${configuredIds.length} explicitly configured model ID(s).`,
+      );
+      return configuredIds;
+    }
+  }
 
   /** Resolve a `modelId` or `vendor:modelId` reference into a concrete target. */
   private async resolveRef(
