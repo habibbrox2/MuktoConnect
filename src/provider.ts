@@ -640,6 +640,10 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     };
 
     const handlePayload = (payload: string): boolean => {
+      // Record tool-call intent as soon as it appears on the wire, even if its JSON/arguments are truncated.
+      if (payload.includes('"tool_calls"')) {
+        onToolCallStart?.();
+      }
       if (payload.trim() === '[DONE]') {
         stats.completed = true;
         for (const index of [...buffers.keys()]) {
@@ -657,9 +661,6 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       }
       if (delta.text) {
         report(new vscode.LanguageModelTextPart(delta.text));
-      }
-      if ((delta.toolCalls?.length ?? 0) > 0) {
-        onToolCallStart?.();
       }
       for (const call of delta.toolCalls ?? []) {
         const buffer = buffers.get(call.index) ?? { args: '' };
