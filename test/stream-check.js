@@ -352,7 +352,7 @@ async function check(route, label, fn) {
     assert.strictEqual(text, 'Hello world');
   });
 
-  await check('tool-limit', 'requests silently cap model tools at 128 without a warning', async () => {
+  await check('sse-ok', 'requests silently cap model tools at 128 without a warning', async () => {
     requestBodies.length = 0;
     const tools = Array.from({ length: 138 }, (_, index) => ({
       name: `tool_${String(index).padStart(3, '0')}`,
