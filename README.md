@@ -86,15 +86,15 @@ npm run watch        # Watch mode
 
 Push a stable version tag such as `v0.1.6` after merging the release workflow to `main`. The workflow runs compilation, unit tests, and streaming integration tests before packaging a VSIX and creating a GitHub Release. The tag version is applied to the packaged extension.
 
-To enable automatic updates for users who install MuktoConnect from the VS Code Marketplace, configure the repository Actions secret `VSCE_PAT` with a Marketplace publishing token for publisher `habibbrox2`. Optionally configure `OVSX_PAT` to publish to Open VSX for compatible editors. The workflow skips a registry when its secret is absent; a GitHub Release/VSIX upload alone does **not** enable automatic updates for manually installed VSIX files. Marketplace-installed extensions use VS Code's built-in auto-update setting.
+To enable automatic updates for users who install MuktoConnect from the VS Code Marketplace, configure a **trusted publishing policy** for publisher `habibbrox2` that allows this GitHub repository and `.github/workflows/release.yml`, then the workflow publishes with GitHub Actions OIDC (`vsce publish --oidc`) without a long-lived Marketplace token. Optionally configure the repository Actions secret `OVSX_PAT` to publish to Open VSX for compatible editors. Marketplace publishing will fail closed until trusted publishing is configured; a GitHub Release/VSIX upload alone does **not** enable automatic updates for manually installed VSIX files. Marketplace-installed extensions use VS Code's built-in auto-update setting.
 
-Do not publish a tag until the workflow changes are merged into `main` and the publisher credentials are configured. Use a new, unused version for every release.
+Do not publish a tag until the workflow changes are merged into `main`, the Marketplace publisher/trusted policy is configured, and any optional Open VSX credentials are ready. Use a new, unused version for every release.
 
 ## Testing
 
 - `npm run test:unit` — 28/28 tests passed in the local verification run.
 - `npm run test:stream` — 10/10 scenarios passed in the local verification run.
-- VSIX packaging is being checked separately; real GitHub Copilot Agent Edit/Shell behavior still needs an end-to-end VS Code test.
+- VSIX packaging and isolated VS Code installation smoke test passed; real GitHub Copilot Agent Edit/Shell behavior still needs an end-to-end VS Code test.
 
 ## License
 
