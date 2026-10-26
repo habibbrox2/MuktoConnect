@@ -91,7 +91,7 @@ const requestBodies = [];
 const server = http.createServer((req, res) => {
   const requestChunks = [];
   req.on('data', (chunk) => requestChunks.push(chunk));
-  req.on('end', () => requestBodies.push(Buffer.concat(requestChunks).toString('utf8')));
+  req.on('end', () => { if (req.method === 'POST') requestBodies.push(Buffer.concat(requestChunks).toString('utf8')); });
   req.resume();
   const name = scenario.name;
   if (name === 'sse-ok') {
@@ -139,6 +139,11 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     res.write(': keep-alive\n\n');
     setTimeout(() => res.destroy(), 10);
+    return;
+  }
+  if (name === 'partial-truncated' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ data: [] }));
     return;
   }
   if (name === 'partial-truncated') {
