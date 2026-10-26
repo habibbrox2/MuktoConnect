@@ -438,7 +438,8 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       stream: true,
     };
 
-    const tools = toOpenAiTools(options.tools);
+    // A text continuation must never re-issue tools from the interrupted turn.
+    const tools = continuationText ? undefined : toOpenAiTools(options.tools);
     if (tools && tools.length > 0) {
       body.tools = tools;
       if (options.toolMode === vscode.LanguageModelChatToolMode.Required) {
