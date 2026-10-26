@@ -290,6 +290,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     }
 
     let lastError: unknown;
+    let quotaFallbackOnlyFree = false;
     for (const entry of targets) {
       if (token.isCancellationRequested) {
         throw new Error('Request cancelled.');
@@ -301,6 +302,10 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
 
       const target = entry.target;
       const cooldownKey = `${target.vendor}:${target.info.id}`;
+      if (quotaFallbackOnlyFree && !isFreeModelRef(target.info.id)) {
+        this.log(`${this.spec.displayName}: skipping non-free fallback ${cooldownKey} after a free-usage quota limit.`);
+        continue;
+      }
       const cooldownUntil = this.quotaCooldowns.get(cooldownKey) ?? 0;
       if (cooldownUntil > Date.now()) {
         this.log(`${this.spec.displayName}: skipping ${cooldownKey}; quota cooldown has ${Math.ceil((cooldownUntil - Date.now()) / 1000)}s remaining.`);
@@ -348,6 +353,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
           }
           const quotaLimit = isQuotaLimitError(error);
           if (quotaLimit) {
+            quotaFallbackOnlyFree = true;
             const retryAfterMs = error instanceof HttpError ? error.getRetryAfterMs() : undefined;
             // Free-usage quota errors will not heal by retrying the same model.
             // Keep the provider/model in cooldown and immediately try the next candidate.
