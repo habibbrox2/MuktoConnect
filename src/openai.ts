@@ -137,6 +137,7 @@ export function buildCandidateRefs(
  */
 export class SseParser {
   private buffer = '';
+  private dataLines: string[] = [];
 
   push(chunk: string): string[] {
     this.buffer += chunk;
@@ -144,32 +145,54 @@ export class SseParser {
     this.buffer = lines.pop() ?? '';
     const payloads: string[] = [];
     for (const line of lines) {
-      if (!line.startsWith('data:')) {
-        continue;
-      }
-      const payload = line.slice(5);
-      payloads.push(payload.startsWith(' ') ? payload.slice(1) : payload);
+      this.consumeLine(line, payloads);
     }
     return payloads;
   }
 
-  /** Flush any trailing payload that arrived without a final newline. */
+  /** Flush an unterminated final event as well as any complete trailing line. */
   flush(): string[] {
-    const rest = this.buffer;
-    this.buffer = '';
-    if (rest.startsWith('data:')) {
-      const payload = rest.slice(5);
-      return [payload.startsWith(' ') ? payload.slice(1) : payload];
+    const payloads: string[] = [];
+    if (this.buffer.length > 0) {
+      this.consumeLine(this.buffer, payloads);
+      this.buffer = '';
     }
-    return [];
+    this.flushEvent(payloads);
+    return payloads;
+  }
+
+  private consumeLine(line: string, payloads: string[]): void {
+    if (line.length === 0) {
+      this.flushEvent(payloads);
+      return;
+    }
+    // SSE comments are keep-alives and must not become model payloads.
+    if (line.startsWith(':')) {
+      return;
+    }
+    if (!line.startsWith('data:')) {
+      return;
+    }
+    const value = line.slice(5);
+    this.dataLines.push(value.startsWith(' ') ? value.slice(1) : value);
+  }
+
+  private flushEvent(payloads: string[]): void {
+    if (this.dataLines.length > 0) {
+      // The SSE spec joins multiple data fields with a newline.
+      payloads.push(this.dataLines.join('\n'));
+      this.dataLines = [];
+    }
   }
 }
 
-export function tryParseJson(text: string): { ok: true; value: object } | { ok: false } {
+export function tryParseJson(text: string): { ok: true; value: Record<string, unknown> } | { ok: false } {
   try {
-    const parsed = JSON.parse(text);
-    if (parsed && typeof parsed === 'object') {
-      return { ok: true, value: parsed as object };
+    const parsed: unknown = JSON.parse(text);
+    // VS Code tool inputs and OpenAI function arguments must be JSON objects,
+    // not arrays, primitives, or null.
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return { ok: true, value: parsed as Record<string, unknown> };
     }
     return { ok: false };
   } catch {

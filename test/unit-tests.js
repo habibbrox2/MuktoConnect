@@ -33,6 +33,18 @@ function test(name, fn) {
 
 // ---------------------------------------------------------------- failure kinds
 
+test('SSE parser joins multiple data lines in one event', () => {
+  const parser = new SseParser();
+  assert.deepStrictEqual(parser.push('data: {"choices":\ndata: []}\n\n'), ['{"choices":\n[]}' ]);
+  assert.deepStrictEqual(parser.push(': keep-alive\n\n'), []);
+});
+
+test('SSE parser flushes a final event without a blank-line terminator', () => {
+  const parser = new SseParser();
+  assert.deepStrictEqual(parser.push('data: [DONE]'), []);
+  assert.deepStrictEqual(parser.flush(), ['[DONE]']);
+});
+
 test('transient statuses are retried', () => {
   for (const status of [408, 409, 425, 429, 500, 502, 503, 504, 529]) {
     assert.strictEqual(classifyFailure(status), 'retry', `status ${status}`);
@@ -51,6 +63,16 @@ test('model and auth failures switch model instead of retrying', () => {
 
 test('cancellation is fatal', () => {
   assert.strictEqual(classifyFailure(500, true), 'fatal');
+});
+
+test('tryParseJson rejects arrays and primitives as tool inputs', () => {
+  assert.deepStrictEqual(tryParseJson('{"path":"src/main.ts"}'), {
+    ok: true,
+    value: { path: 'src/main.ts' },
+  });
+  assert.deepStrictEqual(tryParseJson('["not", "an", "object"]'), { ok: false });
+  assert.deepStrictEqual(tryParseJson('null'), { ok: false });
+  assert.deepStrictEqual(tryParseJson('"text"'), { ok: false });
 });
 
 test('HttpError carries status and body', () => {
@@ -104,16 +126,17 @@ test('duplicates and empty entries are dropped, selected is never repeated', () 
 
 // ------------------------------------------------------------------- SSE parsing
 
-test('SSE parser handles payloads split across chunks', () => {
+test('SSE parser handles event boundaries split across chunks', () => {
   const parser = new SseParser();
-  assert.deepStrictEqual(parser.push('data: {"a":1}\n'), ['{"a":1}']);
-  assert.deepStrictEqual(parser.push('data: {"b":2}\ndata: [DONE]\n'), ['{"b":2}', '[DONE]']);
+  assert.deepStrictEqual(parser.push('data: {"a":1}\n'), []);
+  assert.deepStrictEqual(parser.push('\n' + 'data: {"b":2}\n'), ['{"a":1}']);
+  assert.deepStrictEqual(parser.push('\ndata: [DONE]\n\n'), ['{"b":2}', '[DONE]']);
   assert.deepStrictEqual(parser.push(''), []);
 });
 
 test('SSE parser ignores event/comment lines and CRLF', () => {
   const parser = new SseParser();
-  assert.deepStrictEqual(parser.push(': keep-alive\r\ndata: {"a":1}\r\n'), ['{"a":1}']);
+  assert.deepStrictEqual(parser.push(': keep-alive\r\ndata: {"a":1}\r\n\r\n'), ['{"a":1}']);
 });
 
 test('SSE parser flushes a trailing payload without a newline', () => {
@@ -125,7 +148,7 @@ test('SSE parser flushes a trailing payload without a newline', () => {
 test('SSE parser tolerates a payload split mid-line', () => {
   const parser = new SseParser();
   assert.deepStrictEqual(parser.push('data: {"par'), []);
-  assert.deepStrictEqual(parser.push('tial":true}\n'), ['{"partial":true}']);
+  assert.deepStrictEqual(parser.push('tial":true}\n\n'), ['{"partial":true}']);
 });
 
 // ------------------------------------------------------------------- delta reads
