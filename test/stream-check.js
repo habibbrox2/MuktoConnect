@@ -137,6 +137,41 @@ const server = http.createServer((req, res) => {
     setTimeout(() => res.destroy(), 10);
     return;
   }
+  if (name === 'toolcall-fragmented') {
+    // Kilo/OpenAI style: first delta carries id + name with empty arguments,
+    // the JSON arrives one fragment per delta, finish_reason comes last.
+    sse(res, [
+      JSON.stringify({
+        choices: [
+          { delta: { tool_calls: [{ index: 0, id: 'call_1', function: { name: 'read_file', arguments: '' } }] } },
+        ],
+      }),
+      JSON.stringify({
+        choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"path":' } }] } }],
+      }),
+      JSON.stringify({
+        choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '"src/main.ts"}' } }] } }],
+      }),
+      JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }),
+      '[DONE]',
+    ]);
+    return;
+  }
+  if (name === 'toolcall-nofinish') {
+    // Some gateways never send finish_reason and just end with [DONE].
+    sse(res, [
+      JSON.stringify({
+        choices: [
+          { delta: { tool_calls: [{ index: 0, id: 'call_7', function: { name: 'ls', arguments: '' } }] } },
+        ],
+      }),
+      JSON.stringify({
+        choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"dir":"src"}' } }] } }],
+      }),
+      '[DONE]',
+    ]);
+    return;
+  }
   if (name === 'stall') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     res.write(': keep-alive\n\n');
@@ -317,6 +352,22 @@ async function check(route, label, fn) {
       return;
     }
     assert.fail(`resolved with ${parts.length} parts instead of throwing`);
+  });
+
+  await check('toolcall-fragmented', 'fragmented tool call streams with its full arguments', async () => {
+    const parts = await run(base);
+    const calls = parts.filter((part) => part instanceof ToolCallPart);
+    assert.strictEqual(calls.length, 1, `expected 1 tool call, got ${JSON.stringify(parts)}`);
+    assert.strictEqual(calls[0].name, 'read_file');
+    assert.deepStrictEqual(calls[0].input, { path: 'src/main.ts' });
+  });
+
+  await check('toolcall-nofinish', 'tool call without finish_reason is flushed at [DONE]', async () => {
+    const parts = await run(base);
+    const calls = parts.filter((part) => part instanceof ToolCallPart);
+    assert.strictEqual(calls.length, 1, `expected 1 tool call, got ${JSON.stringify(parts)}`);
+    assert.strictEqual(calls[0].name, 'ls');
+    assert.deepStrictEqual(calls[0].input, { dir: 'src' });
   });
 
   if (typeof server.closeAllConnections === 'function') {

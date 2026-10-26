@@ -514,6 +514,11 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         return false;
       }
       if (!buffer.name) {
+        if (strict) {
+          this.log(`Dropping tool call #${index}: no function name was ever received.`);
+          buffers.delete(index);
+          completed.add(index);
+        }
         return false;
       }
       const parsed = tryParseJson(buffer.args || '{}');
@@ -535,7 +540,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     const handlePayload = (payload: string): boolean => {
       if (payload.trim() === '[DONE]') {
         for (const index of [...buffers.keys()]) {
-          emitBuffered(index, false);
+          emitBuffered(index, true);
         }
         return false;
       }
@@ -562,7 +567,11 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
           buffer.args += call.args;
         }
         buffers.set(call.index, buffer);
-        emitBuffered(call.index, false);
+        // Arguments arrive one fragment per delta, and the first delta usually
+        // carries only the id/name with `arguments: ""`. Emitting here would
+        // ship an empty {} input before the real arguments land (the model
+        // would then run tools like Read with no `path`), so wait for
+        // finish_reason / [DONE] / end of stream to flush.
       }
       if (delta.finishReason) {
         for (const index of [...buffers.keys()]) {
@@ -598,7 +607,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         handlePayload(payload);
       }
       for (const index of [...buffers.keys()]) {
-        emitBuffered(index, false);
+        emitBuffered(index, true);
       }
       this.log(`Stream ended with ${stats.chunks} chunks`);
       return stats;
