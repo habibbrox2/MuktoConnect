@@ -315,13 +315,13 @@ function makeMessages() {
   ];
 }
 
-async function run(baseUrl, extra, modelId) {
+async function run(baseUrl, extra, modelId, tools) {
   const provider = makeProvider(baseUrl, extra);
   const parts = [];
   await provider.provideLanguageModelChatResponse(
     makeModel(modelId),
     makeMessages(),
-    { modelOptions: {} },
+    { modelOptions: {}, tools },
     { report: (part) => parts.push(part) },
     makeToken(),
   );
@@ -350,6 +350,20 @@ async function check(route, label, fn) {
     const parts = await run(base);
     const text = parts.map((p) => (p instanceof TextPart ? p.value : '')).join('');
     assert.strictEqual(text, 'Hello world');
+  });
+
+  await check('tool-limit', 'requests silently cap model tools at 128 without a warning', async () => {
+    requestBodies.length = 0;
+    const tools = Array.from({ length: 138 }, (_, index) => ({
+      name: `tool_${String(index).padStart(3, '0')}`,
+      description: `Tool number ${index}`,
+      inputSchema: { type: 'object', properties: {} },
+    }));
+    await run(base, {}, undefined, tools);
+    const body = JSON.parse(requestBodies[requestBodies.length - 1]);
+    assert.strictEqual(body.tools.length, 128, 'must never send more than 128 tool definitions');
+    assert.strictEqual(body.tools[0].function.name, 'tool_000');
+    assert.strictEqual(body.tools[127].function.name, 'tool_127');
   });
 
   await check('json-completion', 'gateway that ignores stream:true still answers', async () => {
