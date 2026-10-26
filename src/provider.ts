@@ -12,6 +12,7 @@ import {
   backoffDelay,
   buildCandidateRefs,
   classifyFailure,
+  filterEligibleFallbackRefs,
   HttpError,
   NonStreamedCompletion,
   parseModelIds,
@@ -257,7 +258,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       }
     }
 
-    const configuredFallbacks = settings.fallbackModels.filter((ref) => eligibleRefs.has(ref));
+    const configuredFallbacks = filterEligibleFallbackRefs(settings.fallbackModels, eligibleRefs);
     const dynamicFallbacks = [...eligibleRefs].filter((ref) => ref !== model.id);
     const promoted = this.promoted && eligibleRefs.has(this.promoted) ? this.promoted : undefined;
     if (this.promoted && !promoted) {
