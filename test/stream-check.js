@@ -147,23 +147,25 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (name === 'quota-free-fallback' && req.method === 'POST') {
-    scenario.requests += 1;
-    const body = JSON.parse(requestChunks.map((chunk) => chunk.toString('utf8')).join(''));
-    if (body.model === 'paid-model') {
-      res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '2' });
-      res.end(JSON.stringify({ type: 'error', error: { type: 'FreeUsageLimitError', message: 'Free usage limit reached' } }));
-      return;
-    }
-    if (body.model === 'free-model') {
-      sse(res, [
-        JSON.stringify({ choices: [{ delta: { content: 'Free fallback worked.' } }] }),
-        JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }),
-        '[DONE]',
-      ]);
-      return;
-    }
-    res.writeHead(500);
-    res.end('Unexpected paid fallback');
+    req.on('end', () => {
+      scenario.requests += 1;
+      const body = JSON.parse(requestBodies[requestBodies.length - 1]);
+      if (body.model === 'paid-model') {
+        res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '2' });
+        res.end(JSON.stringify({ type: 'error', error: { type: 'FreeUsageLimitError', message: 'Free usage limit reached' } }));
+        return;
+      }
+      if (body.model === 'free-model') {
+        sse(res, [
+          JSON.stringify({ choices: [{ delta: { content: 'Free fallback worked.' } }] }),
+          JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }),
+          '[DONE]',
+        ]);
+        return;
+      }
+      res.writeHead(500);
+      res.end('Unexpected paid fallback');
+    });
     return;
   }
   if (name === 'toolcall-partial-truncated') {
