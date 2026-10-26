@@ -141,12 +141,12 @@ const server = http.createServer((req, res) => {
     setTimeout(() => res.destroy(), 10);
     return;
   }
-  if (name === 'partial-reset') {
+  if (name === 'partial-truncated') {
     scenario.requests += 1;
     if (scenario.requests === 1) {
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
       res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Partial answer ' } }] })}\n\n`);
-      setTimeout(() => res.destroy(), 100);
+      res.end();
       return;
     }
     sse(res, [
@@ -363,7 +363,7 @@ async function check(route, label, fn) {
     assert.fail(`resolved with ${parts.length} parts instead of throwing`);
   });
 
-  await check('partial-reset', 'text-only partial response automatically continues without repeating the partial text', async () => {
+  await check('partial-truncated', 'text-only partial response automatically continues without repeating the partial text', async () => {
     scenario.requests = 0;
     requestBodies.length = 0;
     const parts = await run(base);
