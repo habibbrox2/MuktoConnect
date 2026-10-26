@@ -77,6 +77,8 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   private warnedAboutKey = false;
   /** Cached model IDs per provider to avoid re-fetching. */
   private modelCache: Map<string, string[]> = new Map();
+  /** In-memory quota cooldowns keyed by provider + model ID. */
+  private readonly quotaCooldowns = new Map<string, number>();
 
   constructor(
     readonly vendor: VendorId,
@@ -262,6 +264,10 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
 
     const configuredFallbacks = filterEligibleFallbackRefs(settings.fallbackModels, eligibleRefs);
     const dynamicFallbacks = [...eligibleRefs].filter((ref) => ref !== model.id);
+    // Prefer explicitly free models whenever choosing a fallback, regardless of provider order.
+    const orderedFallbacks = dedupe([...configuredFallbacks, ...dynamicFallbacks]).sort(
+      (a, b) => Number(isFreeModelRef(b)) - Number(isFreeModelRef(a)),
+    );
     const promoted = this.promoted && eligibleRefs.has(this.promoted) ? this.promoted : undefined;
     if (this.promoted && !promoted) {
       this.log(`${this.spec.displayName}: ignoring promoted model "${this.promoted}" because its provider is not currently eligible.`);
@@ -269,7 +275,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     }
     const refs = buildCandidateRefs(
       model.id,
-      dedupe([...configuredFallbacks, ...dynamicFallbacks]),
+      orderedFallbacks,
       promoted,
       retry.autoSwitch,
     );
@@ -284,6 +290,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     }
 
     let lastError: unknown;
+    let quotaFallbackOnlyFree = false;
     for (const entry of targets) {
       if (token.isCancellationRequested) {
         throw new Error('Request cancelled.');
@@ -294,6 +301,17 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       }
 
       const target = entry.target;
+      const cooldownKey = `${target.vendor}:${target.info.id}`;
+      if (quotaFallbackOnlyFree && !isFreeModelRef(target.info.id)) {
+        this.log(`${this.spec.displayName}: skipping non-free fallback ${cooldownKey} after a free-usage quota limit.`);
+        continue;
+      }
+      const cooldownUntil = this.quotaCooldowns.get(cooldownKey) ?? 0;
+      if (cooldownUntil > Date.now()) {
+        this.log(`${this.spec.displayName}: skipping ${cooldownKey}; quota cooldown has ${Math.ceil((cooldownUntil - Date.now()) / 1000)}s remaining.`);
+        continue;
+      }
+      this.quotaCooldowns.delete(cooldownKey);
       let attempt = 0;
       const maxAttempts = Math.max(1, retry.maxAttempts);
 
@@ -315,7 +333,9 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
           },
         };
         try {
-          await this.streamOnce(target, messages, options, attemptProgress, token, retry.timeoutMs);
+          await this.streamOnce(target, messages, options, attemptProgress, token, retry.timeoutMs, undefined, () => {
+            attemptHasToolCall = true;
+          });
           this.noteSuccess(model, target);
           return;
         } catch (error) {
@@ -330,6 +350,23 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
           if (emitted) {
             // Once output is visible, never restart the full answer or switch models mid-turn.
             throw error;
+          }
+          const quotaLimit = isQuotaLimitError(error);
+          if (quotaLimit) {
+            quotaFallbackOnlyFree = true;
+            const retryAfterMs = error instanceof HttpError ? error.getRetryAfterMs() : undefined;
+            // Free-usage quota errors will not heal by retrying the same model.
+            // Keep the provider/model in cooldown and immediately try the next candidate.
+            const cooldownMs = Math.min(Math.max(retryAfterMs ?? 60000, 1000), 15 * 60 * 1000);
+            this.quotaCooldowns.set(cooldownKey, Date.now() + cooldownMs);
+            this.log(
+              `${this.spec.displayName}: quota limit detected for ${cooldownKey}; skipping same-model retries and cooling down for ${Math.ceil(cooldownMs / 1000)}s.`,
+            );
+            lastError = error;
+            if (target.info.id === this.promoted || this.promoted === cooldownKey) {
+              this.promoted = undefined;
+            }
+            break;
           }
           const kind = classifyFailure(
             error instanceof HttpError ? error.status : undefined,
@@ -390,6 +427,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     token: vscode.CancellationToken,
     timeoutMs: number,
     continuationText?: string,
+    onToolCallStart?: () => void,
   ): Promise<void> {
     const url = `${stripTrailingSlash(target.baseUrl)}/chat/completions`;
     const requestMessages = toOpenAiMessages(messages);
@@ -406,7 +444,8 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       stream: true,
     };
 
-    const tools = toOpenAiTools(options.tools);
+    // A text continuation must never re-issue tools from the interrupted turn.
+    const tools = continuationText ? undefined : toOpenAiTools(options.tools);
     if (tools && tools.length > 0) {
       body.tools = tools;
       if (options.toolMode === vscode.LanguageModelChatToolMode.Required) {
@@ -464,7 +503,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       this.log(`${this.spec.displayName}: streaming response started`);
       let stats: StreamStats;
       try {
-        stats = await this.consume(response.body, progress, token);
+        stats = await this.consume(response.body, progress, token, onToolCallStart);
       } catch (error) {
         // Mid-stream aborts (timeout, socket reset) must surface as a failed
         // attempt so the retry/fallback loop can handle them.
@@ -563,6 +602,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     body: ReadableStream<Uint8Array>,
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
     token: vscode.CancellationToken,
+    onToolCallStart?: () => void,
   ): Promise<StreamStats> {
     const reader = body.getReader();
     const decoder = new TextDecoder();
@@ -606,6 +646,10 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     };
 
     const handlePayload = (payload: string): boolean => {
+      // Record tool-call intent as soon as it appears on the wire, even if its JSON/arguments are truncated.
+      if (payload.includes('"tool_calls"')) {
+        onToolCallStart?.();
+      }
       if (payload.trim() === '[DONE]') {
         stats.completed = true;
         for (const index of [...buffers.keys()]) {
@@ -797,6 +841,18 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     }
     return Math.ceil(chars / 4);
   }
+}
+
+function isFreeModelRef(ref: string): boolean {
+  return /free/i.test(ref);
+}
+
+function isQuotaLimitError(error: unknown): error is HttpError {
+  if (!(error instanceof HttpError) || error.status !== 429) {
+    return false;
+  }
+  const body = error.body ?? '';
+  return /FreeUsageLimitError|free usage limit reached|quota(?:\s|_|-)*(?:exceeded|limit|reached)|insufficient quota/i.test(body);
 }
 
 function dedupe(values: readonly string[]): string[] {

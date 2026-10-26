@@ -141,6 +141,46 @@ const server = http.createServer((req, res) => {
     setTimeout(() => res.destroy(), 10);
     return;
   }
+  if (name === 'quota-free-fallback' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ data: [{ id: 'paid-other' }, { id: 'free-model' }, { id: 'paid-model' }] }));
+    return;
+  }
+  if (name === 'quota-free-fallback' && req.method === 'POST') {
+    req.on('end', () => {
+      scenario.requests += 1;
+      const body = JSON.parse(requestBodies[requestBodies.length - 1]);
+      if (body.model === 'paid-model') {
+        res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '2' });
+        res.end(JSON.stringify({ type: 'error', error: { type: 'FreeUsageLimitError', message: 'Free usage limit reached' } }));
+        return;
+      }
+      if (body.model === 'free-model') {
+        sse(res, [
+          JSON.stringify({ choices: [{ delta: { content: 'Free fallback worked.' } }] }),
+          JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }),
+          '[DONE]',
+        ]);
+        return;
+      }
+      res.writeHead(500);
+      res.end('Unexpected paid fallback');
+    });
+    return;
+  }
+  if (name === 'toolcall-partial-truncated' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ data: [] }));
+    return;
+  }
+  if (name === 'toolcall-partial-truncated' && req.method === 'POST') {
+    scenario.requests += 1;
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+    res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Before tool call ' } }] })}\n\n`);
+    res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_partial', function: { name: 'read_file', arguments: '{"path":' } }] } }] })}\n\n`);
+    res.end();
+    return;
+  }
   if (name === 'partial-truncated' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ data: [] }));
@@ -245,10 +285,10 @@ function makeProvider(baseUrl, extra) {
   return provider;
 }
 
-function makeModel() {
+function makeModel(id) {
   return {
-    id: 'test-model',
-    name: 'test-model',
+    id: id || 'test-model',
+    name: id || 'test-model',
     family: 'custom',
     version: '1.0.0',
     tooltip: 'test',
@@ -275,13 +315,13 @@ function makeMessages() {
   ];
 }
 
-async function run(baseUrl, extra) {
+async function run(baseUrl, extra, modelId, tools) {
   const provider = makeProvider(baseUrl, extra);
   const parts = [];
   await provider.provideLanguageModelChatResponse(
-    makeModel(),
+    makeModel(modelId),
     makeMessages(),
-    { modelOptions: {} },
+    { modelOptions: {}, tools },
     { report: (part) => parts.push(part) },
     makeToken(),
   );
@@ -310,6 +350,20 @@ async function check(route, label, fn) {
     const parts = await run(base);
     const text = parts.map((p) => (p instanceof TextPart ? p.value : '')).join('');
     assert.strictEqual(text, 'Hello world');
+  });
+
+  await check('sse-ok', 'requests silently cap model tools at 128 without a warning', async () => {
+    requestBodies.length = 0;
+    const tools = Array.from({ length: 138 }, (_, index) => ({
+      name: `tool_${String(index).padStart(3, '0')}`,
+      description: `Tool number ${index}`,
+      inputSchema: { type: 'object', properties: {} },
+    }));
+    await run(base, {}, undefined, tools);
+    const body = JSON.parse(requestBodies[requestBodies.length - 1]);
+    assert.strictEqual(body.tools.length, 128, 'must never send more than 128 tool definitions');
+    assert.strictEqual(body.tools[0].function.name, 'tool_000');
+    assert.strictEqual(body.tools[127].function.name, 'tool_127');
   });
 
   await check('json-completion', 'gateway that ignores stream:true still answers', async () => {
@@ -380,6 +434,31 @@ async function check(route, label, fn) {
     assert.strictEqual(body.messages[1].content, 'Partial answer ');
     assert.strictEqual(body.messages[2].role, 'user');
     assert.match(body.messages[2].content, /Continue the previous answer/);
+  });
+
+  await check('quota-free-fallback', 'free quota errors skip same-model retries and prefer free fallback models', async () => {
+    scenario.requests = 0;
+    requestBodies.length = 0;
+    const parts = await run(base, {}, 'paid-model');
+    const text = parts.map((part) => (part instanceof TextPart ? part.value : '')).join('');
+    assert.strictEqual(text, 'Free fallback worked.');
+    assert.strictEqual(scenario.requests, 2, 'quota-limited model should be called once, then free fallback once');
+    const bodies = requestBodies.map((body) => JSON.parse(body));
+    assert.deepStrictEqual(bodies.map((body) => body.model), ['paid-model', 'free-model']);
+    assert.ok(logs.some((line) => /quota limit detected.*paid-model.*cooling down for 2s/.test(line)), 'Retry-After cooldown should be recorded');
+  });
+
+  await check('toolcall-partial-truncated', 'partial tool-call streams never trigger text continuation', async () => {
+    scenario.requests = 0;
+    requestBodies.length = 0;
+    try {
+      await run(base);
+      assert.fail('expected interrupted tool-call stream to fail');
+    } catch (error) {
+      assert.ok(error instanceof Error && error.message, 'should surface the interrupted stream error');
+    }
+    assert.strictEqual(scenario.requests, 1, 'must not issue a continuation request after tool-call generation starts');
+    assert.strictEqual(requestBodies.length, 1);
   });
 
   await check('stall', 'a stream that stalls past request.timeoutMs fails the attempt', async () => {
