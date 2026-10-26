@@ -13,7 +13,9 @@ import {
   buildCandidateRefs,
   classifyFailure,
   HttpError,
+  NonStreamedCompletion,
   parseModelIds,
+  parseNonStreamedCompletion,
   readDelta,
   sleep,
   SseParser,
@@ -47,6 +49,18 @@ interface ToolCallBuffer {
   id?: string;
   name?: string;
   args: string;
+}
+
+/** What one streamed attempt actually put on the wire. */
+interface StreamStats {
+  /** Bytes read from the response stream. */
+  chunks: number;
+  /** `data:` payloads parsed out of the SSE stream. */
+  payloads: number;
+  /** Parts reported to VS Code (text or tool calls). */
+  parts: number;
+  /** Body bytes, kept only while no payload has parsed (diagnostics + buffered completions). */
+  raw: string;
 }
 
 export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
@@ -389,12 +403,81 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         throw new HttpError(`POST ${url}: empty response body`, undefined);
       }
       this.log(`${this.spec.displayName}: streaming response started`);
-      await this.consume(response.body, progress, token);
-      this.log(`${this.spec.displayName}: streaming response ended`);
+      let stats: StreamStats;
+      try {
+        stats = await this.consume(response.body, progress, token);
+      } catch (error) {
+        // Mid-stream aborts (timeout, socket reset) must surface as a failed
+        // attempt so the retry/fallback loop can handle them.
+        throw this.toStreamError(error, token, `POST ${url}`);
+      }
+      this.log(
+        `${this.spec.displayName}: streaming response ended ` +
+          `(${stats.chunks} chunks, ${stats.payloads} payloads, ${stats.parts} parts)`,
+      );
+      if (token.isCancellationRequested || stats.parts > 0) {
+        return;
+      }
+      // A gateway that ignores `stream: true` answers with one JSON completion.
+      if (stats.payloads === 0 && stats.raw.trim()) {
+        const completion = parseNonStreamedCompletion(stats.raw);
+        if (completion) {
+          this.log(`${this.spec.displayName}: response was not streamed; using the buffered completion.`);
+          if (this.reportCompletion(completion, progress)) {
+            return;
+          }
+        }
+      }
+      // Resolving with nothing emitted makes VS Code report its generic
+      // "No response was returned" error, so fail the attempt with a real cause.
+      throw this.emptyResponseError(url, response, stats);
     } finally {
       clearTimeout(timer);
       cancelSubscription.dispose();
     }
+  }
+
+  /** Report a buffered (non-streamed) completion; returns how many parts went out. */
+  private reportCompletion(
+    completion: NonStreamedCompletion,
+    progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+  ): number {
+    let parts = 0;
+    if (completion.text) {
+      progress.report(new vscode.LanguageModelTextPart(completion.text));
+      parts += 1;
+    }
+    for (const call of completion.toolCalls ?? []) {
+      const parsed = tryParseJson(call.function.arguments || '{}');
+      if (!parsed.ok) {
+        this.log(`Dropping tool call "${call.function.name}": arguments were not valid JSON.`);
+        continue;
+      }
+      progress.report(new vscode.LanguageModelToolCallPart(call.id, call.function.name, parsed.value));
+      parts += 1;
+    }
+    return parts;
+  }
+
+  /** Explain why a 2xx response produced no chat content. */
+  private emptyResponseError(url: string, response: Response, stats: StreamStats): Error {
+    const contentType = response.headers.get('content-type') || 'unknown';
+    const body = stats.raw.trim();
+    if (stats.payloads === 0) {
+      if (!body) {
+        return new HttpError(`POST ${url}: response body was empty`, undefined);
+      }
+      return new HttpError(
+        `POST ${url}: expected an SSE stream, got "${contentType}" — ` +
+          `first bytes: ${body.slice(0, 300)}`,
+        undefined,
+      );
+    }
+    return new HttpError(
+      `POST ${url}: stream ended without any message content ` +
+        `(${stats.payloads} payloads, content-type: ${contentType})`,
+      undefined,
+    );
   }
 
   private toStreamError(error: unknown, token: vscode.CancellationToken, context: string): Error {
@@ -412,12 +495,18 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     body: ReadableStream<Uint8Array>,
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
     token: vscode.CancellationToken,
-  ): Promise<void> {
+  ): Promise<StreamStats> {
     const reader = body.getReader();
     const decoder = new TextDecoder();
     const parser = new SseParser();
     const buffers = new Map<number, ToolCallBuffer>();
     const completed = new Set<number>();
+    const stats: StreamStats = { chunks: 0, payloads: 0, parts: 0, raw: '' };
+
+    const report = (part: vscode.LanguageModelResponsePart): void => {
+      stats.parts += 1;
+      progress.report(part);
+    };
 
     const emitBuffered = (index: number, strict: boolean): boolean => {
       const buffer = buffers.get(index);
@@ -437,7 +526,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         return false;
       }
       const callId = buffer.id || `call_${Math.random().toString(36).slice(2, 10)}`;
-      progress.report(new vscode.LanguageModelToolCallPart(callId, buffer.name, parsed.value));
+      report(new vscode.LanguageModelToolCallPart(callId, buffer.name, parsed.value));
       buffers.delete(index);
       completed.add(index);
       return true;
@@ -459,7 +548,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         return true;
       }
       if (delta.text) {
-        progress.report(new vscode.LanguageModelTextPart(delta.text));
+        report(new vscode.LanguageModelTextPart(delta.text));
       }
       for (const call of delta.toolCalls ?? []) {
         const buffer = buffers.get(call.index) ?? { args: '' };
@@ -485,30 +574,39 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     };
 
     try {
-      let chunkCount = 0;
       while (!token.isCancellationRequested) {
-        let { done, value } = await reader.read();
+        const { done, value } = await reader.read();
         if (done) {
           break;
         }
-        chunkCount++;
+        stats.chunks += 1;
         const decoded = decoder.decode(value, { stream: true });
+        if (stats.payloads === 0 && stats.raw.length < 262144) {
+          stats.raw += decoded; // kept so a non-streamed body can still be read
+        }
         const payloads = parser.push(decoded);
+        stats.payloads += payloads.length;
         for (const payload of payloads) {
           if (!handlePayload(payload)) {
-            return;
+            return stats;
           }
         }
       }
-      for (const payload of parser.flush()) {
+      const trailing = parser.flush();
+      stats.payloads += trailing.length;
+      for (const payload of trailing) {
         handlePayload(payload);
       }
       for (const index of [...buffers.keys()]) {
         emitBuffered(index, false);
       }
-      this.log(`Stream ended with ${chunkCount} chunks`);
-    } catch {
-      // Stream was aborted (e.g., due to timeout); clean up gracefully
+      this.log(`Stream ended with ${stats.chunks} chunks`);
+      return stats;
+    } catch (error) {
+      if (token.isCancellationRequested) {
+        return stats; // the user stopped the request; not a failure
+      }
+      throw error; // timeout / socket reset — let the retry loop classify it
     } finally {
       reader.releaseLock();
     }

@@ -224,6 +224,71 @@ export function readDelta(payload: unknown): StreamDelta | undefined {
   return result;
 }
 
+export interface NonStreamedCompletion {
+  text?: string;
+  toolCalls?: OpenAIToolCall[];
+}
+
+/**
+ * Recognize a full (non-streamed) OpenAI chat completion sitting in a response
+ * body that was not an SSE stream — some compatible gateways ignore
+ * `stream: true` and answer with a single JSON object.
+ *
+ * Returns `undefined` for anything else (error bodies, HTML, partial JSON, or a
+ * completion that carries no content at all).
+ */
+export function parseNonStreamedCompletion(body: string): NonStreamedCompletion | undefined {
+  const json = tryParseJson(body.trim());
+  if (!json.ok) {
+    return undefined;
+  }
+  const root = json.value as Record<string, unknown>;
+  const choices = root.choices;
+  if (!Array.isArray(choices) || choices.length === 0) {
+    return undefined;
+  }
+  const choice = choices[0];
+  if (!choice || typeof choice !== 'object') {
+    return undefined;
+  }
+  const message = (choice as Record<string, unknown>).message;
+  if (!message || typeof message !== 'object') {
+    return undefined;
+  }
+  const msg = message as Record<string, unknown>;
+  const result: NonStreamedCompletion = {};
+  if (typeof msg.content === 'string' && msg.content.length > 0) {
+    result.text = msg.content;
+  }
+  if (Array.isArray(msg.tool_calls)) {
+    const calls: OpenAIToolCall[] = [];
+    for (const raw of msg.tool_calls) {
+      if (!raw || typeof raw !== 'object') {
+        continue;
+      }
+      const call = raw as Record<string, unknown>;
+      const fn = call.function as Record<string, unknown> | undefined;
+      const name = fn && typeof fn.name === 'string' ? fn.name : undefined;
+      const args = fn && typeof fn.arguments === 'string' ? fn.arguments : undefined;
+      if (!name) {
+        continue;
+      }
+      calls.push({
+        id: typeof call.id === 'string' && call.id ? call.id : `call_${Math.random().toString(36).slice(2, 10)}`,
+        type: 'function',
+        function: { name, arguments: args ?? '{}' },
+      });
+    }
+    if (calls.length > 0) {
+      result.toolCalls = calls;
+    }
+  }
+  if (!result.text && !result.toolCalls) {
+    return undefined;
+  }
+  return result;
+}
+
 /** Tolerant model-id extraction from `/models` responses. */
 export function parseModelIds(payload: unknown): string[] {
   let entries: unknown[] = [];

@@ -2,7 +2,7 @@
   "name": "muktoconnect",
   "displayName": "MuktoConnect — Custom AI Providers for Copilot Chat",
   "description": "Connect custom AI providers and models to GitHub Copilot Chat: MuktoDwar local gateway, Kilo Gateway, OpenCode Console / Zen and any OpenAI-compatible endpoint — with automatic retry and model fallback.",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "publisher": "habibbrox2",
   "license": "MIT",
   "icon": "assets/icon.png",
@@ -236,7 +236,8 @@
     "watch": "tsc -watch -p ./",
     "vscode:prepublish": "npm run compile",
     "brand:build": "node scripts/build-brand.mjs",
-    "test:unit": "npm run compile && node test/unit-tests.js"
+    "test:unit": "npm run compile && node test/unit-tests.js",
+    "test:stream": "npm run compile && node test/stream-check.js"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",

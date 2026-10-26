@@ -15,6 +15,7 @@ const {
   parseModelIds,
   readDelta,
   tryParseJson,
+  parseNonStreamedCompletion,
   HttpError,
 } = require(path.join(__dirname, '..', 'out', 'openai.js'));
 
@@ -225,6 +226,58 @@ test('incremental stream simulation assembles text and tool arguments', () => {
   assert.deepStrictEqual(parsed.value, { dir: true });
   assert.strictEqual(finishReason, 'tool_calls');
   assert.strictEqual(sawDone, true);
+});
+
+// ------------------------------------------------- non-streamed completions
+
+test('parseNonStreamedCompletion reads a buffered text completion', () => {
+  const body = JSON.stringify({
+    id: 'c1',
+    choices: [{ index: 0, message: { role: 'assistant', content: 'Hello there' }, finish_reason: 'stop' }],
+  });
+  const parsed = parseNonStreamedCompletion(body);
+  assert.strictEqual(parsed.text, 'Hello there');
+  assert.strictEqual(parsed.toolCalls, undefined);
+});
+
+test('parseNonStreamedCompletion reads buffered tool calls with valid JSON arguments', () => {
+  const body = JSON.stringify({
+    choices: [
+      {
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            { id: 'call_9', type: 'function', function: { name: 'read_file', arguments: '{"path":"a.ts"}' } },
+            { type: 'function', function: { name: 'ls', arguments: 'not json' } },
+          ],
+        },
+      },
+    ],
+  });
+  const parsed = parseNonStreamedCompletion(body);
+  assert.strictEqual(parsed.toolCalls.length, 2);
+  assert.strictEqual(parsed.toolCalls[0].id, 'call_9');
+  assert.ok(parsed.toolCalls[1].id.startsWith('call_'), 'missing ids are synthesized');
+  const args = tryParseJson(parsed.toolCalls[0].function.arguments);
+  assert.ok(args.ok);
+  assert.deepStrictEqual(args.value, { path: 'a.ts' });
+});
+
+test('parseNonStreamedCompletion rejects error bodies, HTML and empty completions', () => {
+  assert.strictEqual(parseNonStreamedCompletion('{"error":{"message":"quota"}}'), undefined);
+  assert.strictEqual(parseNonStreamedCompletion('<html><body>502</body></html>'), undefined);
+  assert.strictEqual(parseNonStreamedCompletion('not json at all'), undefined);
+  assert.strictEqual(
+    parseNonStreamedCompletion(JSON.stringify({ choices: [{ message: { content: '' } }] })),
+    undefined,
+  );
+  assert.strictEqual(parseNonStreamedCompletion(''), undefined);
+});
+
+test('a streamed body is not mistaken for a buffered completion', () => {
+  // SSE payloads arrive one line at a time; a partial line must not parse
+  assert.strictEqual(parseNonStreamedCompletion('data: {"choices":['), undefined);
 });
 
 // ------------------------------------------------------------------ model lists
