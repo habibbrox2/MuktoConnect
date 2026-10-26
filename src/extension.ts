@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { readVendorSettings, VENDORS, VendorId, VendorSpec } from './config';
-import { parseModelIds } from './openai';
+import { parseModelIds, sleep, backoffDelay } from './openai';
 import { OpenAICompatProvider, ProviderRegistry } from './provider';
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -56,15 +56,36 @@ export function activate(context: vscode.ExtensionContext): void {
         if (compareSemver(latestVersion, currentVersion) <= 0) {
           vscode.window.showInformationMessage('MuktoConnect is up to date.');
         } else {
-          const choice = await vscode.window.showInformationMessage(
-            `MuktoConnect ${latestVersion} is available (current: ${currentVersion})`,
-            'Download',
-            'View Release',
-          );
-          if (choice === 'Download') {
-            vscode.env.openExternal(vscode.Uri.parse(data.html_url));
-          } else if (choice === 'View Release') {
-            vscode.env.openExternal(vscode.Uri.parse(data.html_url));
+          // Retry with backoff on transient errors
+          let success = false;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              const baseButtons: readonly string[] = ['Download', 'View Release'];
+              const buttons = attempt > 0
+                ? [...baseButtons, 'Retry']
+                : baseButtons;
+              const choice = await vscode.window.showInformationMessage(
+                `MuktoConnect ${latestVersion} is available (current: ${currentVersion})`,
+                ...buttons
+              );
+              if (choice === 'Retry') {
+                await sleep(backoffDelay(attempt + 1, 1000)); // exponential backoff with jitter
+                continue;
+              }
+              success = true;
+              if (choice === 'Download') {
+                vscode.env.openExternal(vscode.Uri.parse(data.html_url));
+              } else if (choice === 'View Release') {
+                vscode.env.openExternal(vscode.Uri.parse(data.html_url));
+              }
+              break;
+            } catch {
+              await sleep(backoffDelay(attempt + 1, 1000));
+            }
+          }
+          if (!success) {
+            vscode.window.showErrorMessage('Failed to check for updates after retries.');
+            return;
           }
         }
         log(`Update check: current=${currentVersion}, latest=${latestVersion}`);

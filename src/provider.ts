@@ -58,6 +58,8 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   /** Model promoted by a successful automatic switch (session memory). */
   private promoted: string | undefined;
   private warnedAboutKey = false;
+  /** Cached model IDs per provider to avoid re-fetching. */
+  private modelCache: Map<string, string[]> = new Map();
 
   constructor(
     readonly vendor: VendorId,
@@ -69,11 +71,15 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
 
   refresh(): void {
     this.cache = [];
+    this.modelCache.clear();
     this.changeEmitter.fire();
   }
 
   clearPromoted(): void {
     this.promoted = undefined;
+  }
+  clearModelCache(): void {
+    this.modelCache.clear();
   }
 
   // ---------------------------------------------------------------- discovery
@@ -108,12 +114,21 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       return [];
     }
 
+    // Check model cache first
+    const cachedIds = this.modelCache.get(this.spec.id);
     let discovered: string[] = [];
-    try {
-      discovered = await this.fetchModelIds(settings.modelsUrl, apiKey, settings.baseUrl);
-      this.log(`${this.spec.displayName}: discovered ${discovered.length} models from ${settings.modelsUrl}`);
-    } catch (error) {
-      this.log(`${this.spec.displayName}: model list failed (${describe(error)}), falling back to configured ids.`);
+    if (cachedIds && cachedIds.length > 0) {
+      this.log(`${this.spec.displayName}: using cached model list (${cachedIds.length} models).`);
+      discovered = cachedIds;
+    } else {
+      try {
+        discovered = await this.fetchModelIds(settings.modelsUrl, apiKey, settings.baseUrl);
+        this.log(`${this.spec.displayName}: discovered ${discovered.length} models from ${settings.modelsUrl}`);
+        // Cache the model IDs for future use
+        this.modelCache.set(this.spec.id, dedupe([...settings.modelIds, ...discovered]));
+      } catch (error) {
+        this.log(`${this.spec.displayName}: model list failed (${describe(error)}), falling back to configured ids.`);
+      }
     }
     if (token.isCancellationRequested) {
       return [];
@@ -472,7 +487,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     try {
       let chunkCount = 0;
       while (!token.isCancellationRequested) {
-        const { done, value } = await reader.read();
+        let { done, value } = await reader.read();
         if (done) {
           break;
         }
@@ -492,6 +507,8 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         emitBuffered(index, false);
       }
       this.log(`Stream ended with ${chunkCount} chunks`);
+    } catch {
+      // Stream was aborted (e.g., due to timeout); clean up gracefully
     } finally {
       reader.releaseLock();
     }
