@@ -35,7 +35,7 @@ function test(name, fn) {
 
 test('SSE parser joins multiple data lines in one event', () => {
   const parser = new SseParser();
-  assert.deepStrictEqual(parser.push('data: {"choices":\n data: []}\n\n'), ['{"choices":\n[]}' ]);
+  assert.deepStrictEqual(parser.push('data: {"choices":\ndata: []}\n\n'), ['{"choices":\n[]}' ]);
   assert.deepStrictEqual(parser.push(': keep-alive\n\n'), []);
 });
 
