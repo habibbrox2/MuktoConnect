@@ -137,7 +137,7 @@ const server = http.createServer((req, res) => {
   }
   if (name === 'midstream-reset') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-    res.write(': keep-alive\\n\\n');
+    res.write(': keep-alive\n\n');
     setTimeout(() => res.destroy(), 10);
     return;
   }
@@ -145,7 +145,7 @@ const server = http.createServer((req, res) => {
     scenario.requests += 1;
     if (scenario.requests === 1) {
       res.writeHead(200, { 'Content-Type': 'text/event-stream' });
-      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Partial answer ' } }] })}\\n\\n`);
+      res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Partial answer ' } }] })}\n\n`);
       setTimeout(() => res.destroy(), 10);
       return;
     }
