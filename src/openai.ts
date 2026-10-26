@@ -103,6 +103,25 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Keep only configured fallback references whose provider/model is currently
+ * eligible. The caller supplies local IDs for this provider and vendor:modelId
+ * references for other providers.
+ */
+export function filterEligibleFallbackRefs(
+  fallbacks: readonly string[],
+  eligibleRefs: ReadonlySet<string>,
+): string[] {
+  const result: string[] = [];
+  for (const fallback of fallbacks) {
+    const trimmed = fallback.trim();
+    if (trimmed && eligibleRefs.has(trimmed) && !result.includes(trimmed)) {
+      result.push(trimmed);
+    }
+  }
+  return result;
+}
+
+/**
  * Ordered list of model references to try for a request:
  * promoted model (auto-switch memory) -> selected model -> configured chain.
  */

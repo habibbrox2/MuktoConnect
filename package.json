@@ -121,7 +121,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Ordered fallback chain when the selected MuktoDwar model fails: plain model IDs for this provider, or vendor:modelId for another provider (e.g. kilo:openai/gpt-5.4). The gateway already routes and fails over between its own providers."
+          "description": "Optional ordered fallback chain when the selected MuktoDwar model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
         },
         "muktoconnect.kilo.baseUrl": {
           "type": "string",
@@ -146,10 +146,8 @@
           "items": {
             "type": "string"
           },
-          "default": [
-            "muktodwar:mukto-auto/free"
-          ],
-          "description": "Ordered fallback chain when the selected Kilo model fails: plain model IDs for this provider, or vendor:modelId (e.g. opencode:kimi-k3)."
+          "default": [],
+          "description": "Optional ordered fallback chain when the selected Kilo Gateway model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
         },
         "muktoconnect.opencode.baseUrl": {
           "type": "string",
@@ -174,10 +172,8 @@
           "items": {
             "type": "string"
           },
-          "default": [
-            "muktodwar:mukto-auto/free"
-          ],
-          "description": "Ordered fallback chain when the selected OpenCode model fails: plain model IDs for this provider, or vendor:modelId (e.g. kilo:openai/gpt-5.4)."
+          "default": [],
+          "description": "Optional ordered fallback chain when the selected OpenCode Console / Zen model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
         },
         "muktoconnect.custom.baseUrl": {
           "type": "string",
@@ -203,7 +199,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Ordered fallback chain when the selected custom model fails: plain model IDs for this provider, or vendor:modelId (e.g. muktodwar:mukto-auto/free)."
+          "description": "Optional ordered fallback chain when the selected custom model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
         },
         "muktoconnect.retry.maxAttempts": {
           "type": "number",

@@ -12,6 +12,7 @@ const {
   classifyFailure,
   backoffDelay,
   buildCandidateRefs,
+  filterEligibleFallbackRefs,
   parseModelIds,
   readDelta,
   tryParseJson,
@@ -121,6 +122,36 @@ test('duplicates and empty entries are dropped, selected is never repeated', () 
   assert.deepStrictEqual(
     buildCandidateRefs('primary', ['primary', 'x', 'x', '  '], undefined, true),
     ['primary', 'x'],
+  );
+});
+
+test('configured fallbacks exclude providers without eligible credentials/models', () => {
+  const eligible = new Set(['opencode:free-model', 'kilo:paid-model', 'local-model']);
+  assert.deepStrictEqual(
+    filterEligibleFallbackRefs(
+      ['muktodwar:mukto-auto/free', 'opencode:free-model', 'kilo:paid-model', 'missing', 'local-model'],
+      eligible,
+    ),
+    ['opencode:free-model', 'kilo:paid-model', 'local-model'],
+  );
+});
+
+test('fallback eligibility filtering preserves order and removes duplicates/whitespace', () => {
+  const eligible = new Set(['opencode:model-a', 'kilo:model-b']);
+  assert.deepStrictEqual(
+    filterEligibleFallbackRefs(
+      [' opencode:model-a ', 'kilo:model-b', 'opencode:model-a', '', 'not-configured'],
+      eligible,
+    ),
+    ['opencode:model-a', 'kilo:model-b'],
+  );
+});
+
+test('provider-qualified and local fallback references are distinct', () => {
+  const eligible = new Set(['model-a', 'opencode:model-a']);
+  assert.deepStrictEqual(
+    filterEligibleFallbackRefs(['model-a', 'opencode:model-a', 'kilo:model-a'], eligible),
+    ['model-a', 'opencode:model-a'],
   );
 });
 
