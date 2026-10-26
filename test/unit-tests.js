@@ -209,7 +209,7 @@ test('incremental stream simulation assembles text and tool arguments', () => {
   let sawDone = false;
 
   // split the payloads randomly across chunks to exercise reassembly
-  const wire = payloads.map((p) => `data: ${p}\n`).join('');
+  const wire = payloads.map((p) => `data: ${p}\n\n`).join('');
   const chunks = [];
   for (let i = 0; i < wire.length; i += 17) {
     chunks.push(wire.slice(i, i + 17));
