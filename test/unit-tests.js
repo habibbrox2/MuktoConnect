@@ -126,16 +126,17 @@ test('duplicates and empty entries are dropped, selected is never repeated', () 
 
 // ------------------------------------------------------------------- SSE parsing
 
-test('SSE parser handles payloads split across chunks', () => {
+test('SSE parser handles event boundaries split across chunks', () => {
   const parser = new SseParser();
-  assert.deepStrictEqual(parser.push('data: {"a":1}\n'), ['{"a":1}']);
-  assert.deepStrictEqual(parser.push('data: {"b":2}\ndata: [DONE]\n'), ['{"b":2}', '[DONE]']);
+  assert.deepStrictEqual(parser.push('data: {"a":1}\n'), []);
+  assert.deepStrictEqual(parser.push('\n' + 'data: {"b":2}\n'), ['{"a":1}']);
+  assert.deepStrictEqual(parser.push('\ndata: [DONE]\n\n'), ['{"b":2}', '[DONE]']);
   assert.deepStrictEqual(parser.push(''), []);
 });
 
 test('SSE parser ignores event/comment lines and CRLF', () => {
   const parser = new SseParser();
-  assert.deepStrictEqual(parser.push(': keep-alive\r\ndata: {"a":1}\r\n'), ['{"a":1}']);
+  assert.deepStrictEqual(parser.push(': keep-alive\r\ndata: {"a":1}\r\n\r\n'), ['{"a":1}']);
 });
 
 test('SSE parser flushes a trailing payload without a newline', () => {
@@ -147,7 +148,7 @@ test('SSE parser flushes a trailing payload without a newline', () => {
 test('SSE parser tolerates a payload split mid-line', () => {
   const parser = new SseParser();
   assert.deepStrictEqual(parser.push('data: {"par'), []);
-  assert.deepStrictEqual(parser.push('tial":true}\n'), ['{"partial":true}']);
+  assert.deepStrictEqual(parser.push('tial":true}\n\n'), ['{"partial":true}']);
 });
 
 // ------------------------------------------------------------------- delta reads
