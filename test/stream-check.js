@@ -168,7 +168,12 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  if (name === 'toolcall-partial-truncated') {
+  if (name === 'toolcall-partial-truncated' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ data: [] }));
+    return;
+  }
+  if (name === 'toolcall-partial-truncated' && req.method === 'POST') {
     scenario.requests += 1;
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Before tool call ' } }] })}\n\n`);
