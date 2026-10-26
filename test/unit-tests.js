@@ -33,6 +33,18 @@ function test(name, fn) {
 
 // ---------------------------------------------------------------- failure kinds
 
+test('SSE parser joins multiple data lines in one event', () => {
+  const parser = new SseParser();
+  assert.deepStrictEqual(parser.push('data: {"choices":\n data: []}\n\n'), ['{"choices":\n[]}' ]);
+  assert.deepStrictEqual(parser.push(': keep-alive\n\n'), []);
+});
+
+test('SSE parser flushes a final event without a blank-line terminator', () => {
+  const parser = new SseParser();
+  assert.deepStrictEqual(parser.push('data: [DONE]'), []);
+  assert.deepStrictEqual(parser.flush(), ['[DONE]']);
+});
+
 test('transient statuses are retried', () => {
   for (const status of [408, 409, 425, 429, 500, 502, 503, 504, 529]) {
     assert.strictEqual(classifyFailure(status), 'retry', `status ${status}`);
@@ -51,6 +63,16 @@ test('model and auth failures switch model instead of retrying', () => {
 
 test('cancellation is fatal', () => {
   assert.strictEqual(classifyFailure(500, true), 'fatal');
+});
+
+test('tryParseJson rejects arrays and primitives as tool inputs', () => {
+  assert.deepStrictEqual(tryParseJson('{"path":"src/main.ts"}'), {
+    ok: true,
+    value: { path: 'src/main.ts' },
+  });
+  assert.deepStrictEqual(tryParseJson('["not", "an", "object"]'), { ok: false });
+  assert.deepStrictEqual(tryParseJson('null'), { ok: false });
+  assert.deepStrictEqual(tryParseJson('"text"'), { ok: false });
 });
 
 test('HttpError carries status and body', () => {
