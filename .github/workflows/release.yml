@@ -48,12 +48,18 @@ jobs:
       - name: Package VSIX
         run: npx --yes @vscode/vsce package
 
-      - name: Publish to VS Code Marketplace (GitHub OIDC trusted publishing)
+      - name: Publish to VS Code Marketplace (optional)
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         shell: bash
         run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::notice::VSCE_PAT is not configured; skipping Marketplace publishing."
+            exit 0
+          fi
           vsix="$(find . -maxdepth 1 -name '*.vsix' -print -quit)"
           test -n "$vsix" || { echo "::error::VSIX package not found"; exit 1; }
-          npx --yes @vscode/vsce publish --packagePath "$vsix" --oidc
+          npx --yes @vscode/vsce publish --packagePath "$vsix" --pat "$VSCE_PAT"
 
       - name: Publish to Open VSX Registry
         env:
