@@ -82,6 +82,11 @@
         "category": "MuktoConnect"
       },
       {
+        "command": "muktoconnect.diagnoseModelSelection",
+        "title": "Diagnose Model Selection API",
+        "category": "MuktoConnect"
+      },
+      {
         "command": "muktoconnect.clearPromotedModel",
         "title": "Clear Auto-Switched Model",
         "category": "MuktoConnect"
@@ -228,7 +233,13 @@
           "type": "boolean",
           "default": true,
           "description": "After a text-only streamed response is interrupted, make one continuation request using the partial answer as context. Tool-call partials are never auto-continued."
+        ,
+        "muktoconnect.diagnostics.greetingResponse": {
+          "type": "boolean",
+          "default": false,
+          "description": "Opt-in diagnostic: log request metadata and up to 500 characters of the response only for simple hi/hello/hey messages. Disable after testing."
         }
+      }
       }
     }
   },
