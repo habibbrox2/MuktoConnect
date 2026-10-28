@@ -35,6 +35,8 @@ class ToolResultPart {
   }
 }
 
+const promptCounts = { warning: 0, input: 0 };
+
 const vscodeStub = {
   EventEmitter: class {
     constructor() {
@@ -57,8 +59,8 @@ const vscodeStub = {
   },
   window: {
     setStatusBarMessage: () => ({ dispose() {} }),
-    showWarningMessage: async () => undefined,
-    showInputBox: async () => undefined,
+    showWarningMessage: async () => { promptCounts.warning += 1; return undefined; },
+    showInputBox: async () => { promptCounts.input += 1; return undefined; },
   },
   LanguageModelTextPart: TextPart,
   LanguageModelToolCallPart: ToolCallPart,
@@ -345,6 +347,19 @@ async function check(route, label, fn) {
 (async () => {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}/v1`;
+
+  await check('sse-ok', 'missing required credentials never prompt during repeated model discovery', async () => {
+    const provider = makeProvider(base);
+    // Reuse the custom provider id but simulate a provider that requires an API key.
+    const requiredSpec = { ...spec, requiresKey: true };
+    const requiredProvider = new OpenAICompatProvider('custom', requiredSpec, secretStorage, new ProviderRegistry(), (m) => logs.push(m));
+    const before = { ...promptCounts };
+    const first = await requiredProvider.provideLanguageModelChatInformation({ silent: false }, makeToken());
+    const second = await requiredProvider.provideLanguageModelChatInformation({ silent: false }, makeToken());
+    assert.deepStrictEqual(first, []);
+    assert.deepStrictEqual(second, []);
+    assert.deepStrictEqual(promptCounts, before, 'discovery must not open warning or input prompts');
+  });
 
   await check('sse-ok', 'streamed SSE response is passed through', async () => {
     const parts = await run(base);
