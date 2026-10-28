@@ -16,6 +16,7 @@ import {
   HttpError,
   NonStreamedCompletion,
   parseModelIds,
+  parseModelTiers,
   parseNonStreamedCompletion,
   readDelta,
   sleep,
@@ -78,6 +79,8 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   private modelCache: Map<string, string[]> = new Map();
   /** In-memory quota cooldowns keyed by provider + model ID. */
   private readonly quotaCooldowns = new Map<string, number>();
+  /** Tier hints reported by the provider's model catalogue; unknown is never treated as free. */
+  private readonly modelTiers = new Map<string, 'free' | 'paid' | 'unknown'>();
 
   constructor(
     readonly vendor: VendorId,
@@ -98,6 +101,11 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   }
   clearModelCache(): void {
     this.modelCache.clear();
+  }
+
+  isFreeModelId(modelId: string): boolean {
+    const tier = this.modelTiers.get(modelId);
+    return tier === 'free' || (tier !== 'paid' && /free/i.test(modelId));
   }
 
   // ---------------------------------------------------------------- discovery
@@ -146,8 +154,8 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     const ids = dedupe([...settings.modelIds, ...discovered]);
     // Sort free models first
     const sortedIds = [...ids].sort((a, b) => {
-      const aFree = /free/i.test(a) ? 1 : 0;
-      const bFree = /free/i.test(b) ? 1 : 0;
+      const aFree = this.isFreeModelId(a) ? 1 : 0;
+      const bFree = this.isFreeModelId(b) ? 1 : 0;
       if (aFree !== bFree) {
         return bFree - aFree;
       }
@@ -192,7 +200,11 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     if (!response.ok) {
       throw new HttpError(`GET ${url} -> ${response.status}`, response.status);
     }
-    return parseModelIds(await response.json());
+    const payload: unknown = await response.json();
+    for (const [id, tier] of parseModelTiers(payload)) {
+      this.modelTiers.set(id, tier);
+    }
+    return parseModelIds(payload);
   }
 
   private async resolveApiKey(): Promise<string | undefined> {
@@ -240,7 +252,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     const dynamicFallbacks = [...eligibleRefs].filter((ref) => ref !== model.id);
     // Prefer explicitly free models whenever choosing a fallback, regardless of provider order.
     const orderedFallbacks = dedupe([...configuredFallbacks, ...dynamicFallbacks]).sort(
-      (a, b) => Number(isFreeModelRef(b)) - Number(isFreeModelRef(a)),
+      (a, b) => Number(this.isFreeRef(b)) - Number(this.isFreeRef(a)),
     );
     const promoted = this.promoted && eligibleRefs.has(this.promoted) ? this.promoted : undefined;
     if (this.promoted && !promoted) {
@@ -264,6 +276,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     }
 
     let lastError: unknown;
+    const failureSummary: string[] = [];
     let quotaFallbackOnlyFree = false;
     for (const entry of targets) {
       if (token.isCancellationRequested) {
@@ -271,18 +284,22 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       }
       if (!entry.target) {
         lastError = entry.error ?? lastError;
+        failureSummary.push(`${entry.ref}: ${describe(entry.error ?? new Error('target unavailable'))}`);
         continue;
       }
 
       const target = entry.target;
       const cooldownKey = `${target.vendor}:${target.info.id}`;
-      if (quotaFallbackOnlyFree && !isFreeModelRef(target.info.id)) {
+      if (quotaFallbackOnlyFree && !this.registry.get(target.vendor)?.isFreeModelId(target.info.id)) {
         this.log(`${this.spec.displayName}: skipping non-free fallback ${cooldownKey} after a free-usage quota limit.`);
+        failureSummary.push(`${cooldownKey}: skipped because free-tier quota was exhausted and this model is not confirmed free`);
         continue;
       }
       const cooldownUntil = this.quotaCooldowns.get(cooldownKey) ?? 0;
       if (cooldownUntil > Date.now()) {
-        this.log(`${this.spec.displayName}: skipping ${cooldownKey}; quota cooldown has ${Math.ceil((cooldownUntil - Date.now()) / 1000)}s remaining.`);
+        const remainingSeconds = Math.ceil((cooldownUntil - Date.now()) / 1000);
+        this.log(`${this.spec.displayName}: skipping ${cooldownKey}; cooldown has ${remainingSeconds}s remaining.`);
+        failureSummary.push(`${cooldownKey}: skipped because cooldown has ${remainingSeconds}s remaining`);
         continue;
       }
       this.quotaCooldowns.delete(cooldownKey);
@@ -313,6 +330,12 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
           this.noteSuccess(model, target);
           return;
         } catch (error) {
+          if (attemptHasToolCall) {
+            // Tool-call intent may be buffered until arguments are complete. Switching models
+            // after a truncated tool-call stream could cause the Agent to execute it twice.
+            this.log(`${this.spec.displayName}: ${target.vendor}:${target.info.id} stream failed after tool-call generation began; refusing automatic retry/fallback to prevent duplicate tool execution.`);
+            throw error;
+          }
           if (attemptText.length > 0 && !attemptHasToolCall && retry.autoContinue && !token.isCancellationRequested) {
             this.log(
               `${this.spec.displayName}: ${target.vendor}:${target.info.id} stream interrupted after partial text; attempting one continuation.`,
@@ -326,17 +349,20 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
             throw error;
           }
           const quotaLimit = isQuotaLimitError(error);
-          if (quotaLimit) {
-            quotaFallbackOnlyFree = true;
-            const retryAfterMs = error instanceof HttpError ? error.getRetryAfterMs() : undefined;
-            // Free-usage quota errors will not heal by retrying the same model.
-            // Keep the provider/model in cooldown and immediately try the next candidate.
+          if (error instanceof HttpError && error.status === 429) {
+            if (quotaLimit) {
+              quotaFallbackOnlyFree = true;
+            }
+            const retryAfterMs = error.getRetryAfterMs();
+            // Rate limits are model/provider-specific: don't burn retries against a
+            // throttled endpoint. Honor Retry-After, with a bounded safe default.
             const cooldownMs = Math.min(Math.max(retryAfterMs ?? 60000, 1000), 15 * 60 * 1000);
             this.quotaCooldowns.set(cooldownKey, Date.now() + cooldownMs);
             this.log(
-              `${this.spec.displayName}: quota limit detected for ${cooldownKey}; skipping same-model retries and cooling down for ${Math.ceil(cooldownMs / 1000)}s.`,
+              `${this.spec.displayName}: ${quotaLimit ? 'quota limit detected' : 'rate limit detected'} for ${cooldownKey}; cooling down for ${Math.ceil(cooldownMs / 1000)}s and trying another eligible model.`,
             );
             lastError = error;
+            failureSummary.push(`${cooldownKey}: ${describe(error)}`);
             if (target.info.id === this.promoted || this.promoted === cooldownKey) {
               this.promoted = undefined;
             }
@@ -347,6 +373,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
             token.isCancellationRequested,
           );
           lastError = error;
+          failureSummary.push(`${cooldownKey} attempt ${attempt}: ${describe(error)}`);
           this.log(
             `${this.spec.displayName}: ${target.vendor}:${target.info.id} attempt ${attempt}/${maxAttempts}` +
               ` failed (${describe(error)}) → ${kind}`,
@@ -374,7 +401,11 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       }
     }
 
-    throw lastError instanceof Error ? lastError : new Error('All candidate models failed.');
+    const detail = failureSummary.slice(-6).join(' | ');
+    throw new Error(
+      `${this.spec.displayName}: all eligible candidate models failed${failureSummary.length ? ` (${failureSummary.length} failure(s))` : ''}.` +
+      (detail ? ` Recent failures: ${detail}` : lastError instanceof Error ? ` Last error: ${lastError.message}` : ''),
+    );
   }
 
   private noteSuccess(selected: vscode.LanguageModelChatInformation, target: ResolvedTarget): void {
@@ -787,6 +818,16 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   }
 
   /** Resolve a `modelId` or `vendor:modelId` reference into a concrete target. */
+  private isFreeRef(ref: string): boolean {
+    const separator = ref.indexOf(':');
+    if (separator > 0) {
+      const vendor = ref.slice(0, separator) as VendorId;
+      const provider = this.registry.get(vendor);
+      return provider ? provider.isFreeModelId(ref.slice(separator + 1)) : /free/i.test(ref);
+    }
+    return this.isFreeModelId(ref);
+  }
+
   private async resolveRef(
     ref: string,
     selected: vscode.LanguageModelChatInformation,
@@ -893,7 +934,7 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
     }
     // Keep the synthetic auto model at the top, then globally rank free models
     // ahead of paid models across every backend (not just within each provider).
-    all.sort((a, b) => Number(isFreeModelRef(b.id)) - Number(isFreeModelRef(a.id)) ||
+    all.sort((a, b) => Number(this.isFreeModelRef(b.id)) - Number(this.isFreeModelRef(a.id)) ||
       a.name.localeCompare(b.name));
     const autoModel: vscode.LanguageModelChatInformation = {
       id: AUTO_MODEL_ID,
@@ -928,7 +969,7 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
       // Choose a free model first across all backends. If no free model is
       // currently eligible, retain a usable non-free option rather than fail early.
       candidates.sort((a, b) =>
-        Number(isFreeModelRef(b.id)) - Number(isFreeModelRef(a.id)) ||
+        Number(b.provider.isFreeModelId(b.id)) - Number(a.provider.isFreeModelId(a.id)) ||
         a.provider.vendor.localeCompare(b.provider.vendor) ||
         a.id.localeCompare(b.id));
       const first = candidates[0];
@@ -978,6 +1019,15 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
     );
   }
 
+  private isFreeModelRef(ref: string): boolean {
+    const separator = ref.indexOf(':');
+    if (separator > 0) {
+      const provider = this.providers.find((candidate) => candidate.vendor === ref.slice(0, separator));
+      return provider ? provider.isFreeModelId(ref.slice(separator + 1)) : /free/i.test(ref);
+    }
+    return /free/i.test(ref);
+  }
+
   dispose(): void {
     for (const subscription of this.subscriptions) {
       subscription.dispose();
@@ -988,9 +1038,6 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
 
 const AUTO_MODEL_ID = 'muktoconnect-auto';
 
-function isFreeModelRef(ref: string): boolean {
-  return /free/i.test(ref);
-}
 
 function isQuotaLimitError(error: unknown): error is HttpError {
   if (!(error instanceof HttpError) || error.status !== 429) {

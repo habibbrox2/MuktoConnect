@@ -14,6 +14,7 @@ const {
   buildCandidateRefs,
   filterEligibleFallbackRefs,
   parseModelIds,
+  parseModelTiers,
   readDelta,
   tryParseJson,
   parseNonStreamedCompletion,
@@ -335,6 +336,23 @@ test('a streamed body is not mistaken for a buffered completion', () => {
 });
 
 // ------------------------------------------------------------------ model lists
+
+test('parseModelTiers trusts explicit free flags and pricing metadata, not unknown models', () => {
+  const tiers = parseModelTiers({
+    data: [
+      { id: 'free-explicit', free: true },
+      { id: 'paid-explicit', is_free: false },
+      { id: 'zero-price', pricing: { input: 0, output: 0 } },
+      { id: 'paid-price', pricing: { input: '0.0001', output: '0.0002' } },
+      { id: 'unknown-tier' },
+    ],
+  });
+  assert.strictEqual(tiers.get('free-explicit'), 'free');
+  assert.strictEqual(tiers.get('paid-explicit'), 'paid');
+  assert.strictEqual(tiers.get('zero-price'), 'free');
+  assert.strictEqual(tiers.get('paid-price'), 'paid');
+  assert.strictEqual(tiers.get('unknown-tier'), 'unknown');
+});
 
 test('parseModelIds reads OpenAI-style data arrays', () => {
   const ids = parseModelIds({ object: 'list', data: [{ id: 'a' }, { id: 'b' }] });
