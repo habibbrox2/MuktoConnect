@@ -57,6 +57,11 @@
         "category": "MuktoConnect"
       },
       {
+        "command": "muktoconnect.manageAll",
+        "title": "Manage All Providers",
+        "category": "MuktoConnect"
+      },
+      {
         "command": "muktoconnect.showLogs",
         "title": "Show Provider Logs",
         "category": "MuktoConnect"
