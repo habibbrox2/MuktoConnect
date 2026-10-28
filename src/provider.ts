@@ -833,19 +833,6 @@ function dedupe(values: readonly string[]): string[] {
   return [...new Set(values.filter((value) => value.length > 0))];
 }
 
-function commandSuffix(vendor: VendorId): string {
-  switch (vendor) {
-    case 'muktodwar':
-      return 'MuktoDwar';
-    case 'kilo':
-      return 'Kilo';
-    case 'opencode':
-      return 'OpenCode';
-    default:
-      return 'Custom';
-  }
-}
-
 function describe(error: unknown): string {
   if (error instanceof HttpError) {
     return error.body ? `${error.message} — ${error.body}` : error.message;

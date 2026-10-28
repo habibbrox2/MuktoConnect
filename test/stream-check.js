@@ -349,7 +349,6 @@ async function check(route, label, fn) {
   const base = `http://127.0.0.1:${server.address().port}/v1`;
 
   await check('sse-ok', 'missing required credentials never prompt during repeated model discovery', async () => {
-    const provider = makeProvider(base);
     // Reuse the custom provider id but simulate a provider that requires an API key.
     const requiredSpec = { ...spec, requiresKey: true };
     const requiredProvider = new OpenAICompatProvider('custom', requiredSpec, secretStorage, new ProviderRegistry(), (m) => logs.push(m));
