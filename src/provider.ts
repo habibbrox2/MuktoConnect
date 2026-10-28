@@ -408,9 +408,10 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     // Opt-in diagnostics are deliberately restricted to simple greetings.
     const greetingDiagnostics = vscode.workspace.getConfiguration('muktoconnect')
       .get<boolean>('diagnostics.greetingResponse', false);
-    const greetingRequest = greetingDiagnostics && requestMessages.some((message) =>
-      message.role === 'user' && typeof message.content === 'string' &&
-      /^(hi|hello|hey)[!. ]*$/i.test(message.content.trim()),
+    const lastUserMessage = [...requestMessages].reverse().find((message) => message.role === 'user');
+    const greetingRequest = Boolean(
+      greetingDiagnostics && lastUserMessage && typeof lastUserMessage.content === 'string' &&
+      /^(hi|hello|hey)[!. ]*$/i.test(lastUserMessage.content.trim()),
     );
     if (greetingRequest) {
       this.log(`Greeting diagnostic request: model=${target.info.id}; provider=${target.vendor}; messages=${requestMessages.length}; roles=${requestMessages.map((message) => message.role).join(',')}`);
