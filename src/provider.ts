@@ -496,7 +496,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       this.log(`${this.spec.displayName}: streaming response started`);
       let stats: StreamStats;
       try {
-        stats = await this.consume(response.body, progress, token, onToolCallStart);
+        stats = await this.consume(response.body, diagnosticProgress, token, onToolCallStart);
       } catch (error) {
         // Mid-stream aborts (timeout, socket reset) must surface as a failed
         // attempt so the retry/fallback loop can handle them.
@@ -506,6 +506,9 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         `${this.spec.displayName}: streaming response ended ` +
           `(${stats.chunks} chunks, ${stats.payloads} payloads, ${stats.parts} parts)`,
       );
+      if (greetingRequest) {
+        this.log(`Greeting diagnostic response (first 500 chars): ${JSON.stringify(diagnosticText.join('').slice(0, 500))}`);
+      }
       if (token.isCancellationRequested) {
         return;
       }
@@ -523,7 +526,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         const completion = parseNonStreamedCompletion(stats.raw);
         if (completion) {
           this.log(`${this.spec.displayName}: response was not streamed; using the buffered completion.`);
-          if (this.reportCompletion(completion, progress)) {
+          if (this.reportCompletion(completion, diagnosticProgress)) {
             return;
           }
         }
