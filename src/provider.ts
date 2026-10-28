@@ -1029,9 +1029,6 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
 
 const AUTO_MODEL_ID = 'muktoconnect-auto';
 
-function isFreeModelRef(ref: string): boolean {
-  return /free/i.test(ref);
-}
 
 function isQuotaLimitError(error: unknown): error is HttpError {
   if (!(error instanceof HttpError) || error.status !== 429) {
