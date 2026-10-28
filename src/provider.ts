@@ -405,6 +405,25 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   ): Promise<void> {
     const url = `${stripTrailingSlash(target.baseUrl)}/chat/completions`;
     const requestMessages = toOpenAiMessages(messages);
+    // Opt-in diagnostics are deliberately restricted to simple greetings.
+    const greetingDiagnostics = vscode.workspace.getConfiguration('muktoconnect')
+      .get<boolean>('diagnostics.greetingResponse', false);
+    const greetingRequest = greetingDiagnostics && requestMessages.some((message) =>
+      message.role === 'user' && typeof message.content === 'string' &&
+      /^(hi|hello|hey)[!. ]*$/i.test(message.content.trim()),
+    );
+    if (greetingRequest) {
+      this.log(`Greeting diagnostic request: model=${target.info.id}; provider=${target.vendor}; messages=${requestMessages.length}; roles=${requestMessages.map((message) => message.role).join(',')}`);
+    }
+    const diagnosticText: string[] = [];
+    const diagnosticProgress: vscode.Progress<vscode.LanguageModelResponsePart> = {
+      report: (part) => {
+        if (greetingRequest && part instanceof vscode.LanguageModelTextPart) {
+          diagnosticText.push(part.value);
+        }
+        progress.report(part);
+      },
+    };
     if (continuationText) {
       requestMessages.push({ role: 'assistant', content: continuationText });
       requestMessages.push({
