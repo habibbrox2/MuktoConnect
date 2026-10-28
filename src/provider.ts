@@ -443,9 +443,14 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     const tools = continuationText ? undefined : toOpenAiTools(options.tools);
     if (tools && tools.length > 0) {
       body.tools = tools;
-      if (options.toolMode === vscode.LanguageModelChatToolMode.Required) {
-        body.tool_choice = 'required';
-      }
+      // Be explicit: some OpenAI-compatible gateways do not reliably default
+      // to tool selection when the field is omitted. Keep VS Code's Required
+      // mode strict; otherwise let the model choose tools or normal text.
+      body.tool_choice =
+        options.toolMode === vscode.LanguageModelChatToolMode.Required ? 'required' : 'auto';
+      this.log(
+        `${targetDisplayName}: sending ${tools.length} tool definition(s); tool_choice=${body.tool_choice}`,
+      );
     }
 
     const modelOptions = (options.modelOptions ?? {}) as Record<string, unknown>;
