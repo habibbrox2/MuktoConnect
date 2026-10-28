@@ -63,6 +63,18 @@ Use `MuktoConnect: Manage <Provider> Provider` commands to configure:
 - Custom model IDs
 - Fallback model chains (e.g., `muktodwar:mukto-auto/free` or `kilo:openai/gpt-5.4`)
 
+Provider discovery is intentionally silent. If a required API key or base URL is missing, MuktoConnect exposes no models for that provider and does not show repeated prompts while Copilot Chat refreshes its model list. Configure providers explicitly with the management commands, then refresh the model list.
+
+## Copilot Chat Agent compatibility
+
+MuktoConnect contributes models through VS Code's Language Model Chat Provider API. Tool calling is enabled for exposed models, and the extension translates VS Code messages/tool results to OpenAI Chat Completions format. Agent behavior still depends on the upstream model and endpoint correctly supporting tool calls and the required OpenAI-compatible request format; provider registration alone cannot guarantee parity with every built-in Copilot model.
+
+Verify in a VS Code Extension Development Host with a configured endpoint:
+- Agent mode can call a tool and consume its result in a subsequent model turn.
+- Multiple tool calls and streamed tool-call arguments are handled correctly.
+- Cancellation, rate limits, interrupted streams, and fallback do not duplicate already-visible output or repeat tool execution.
+- Models that support image input are not assumed to support it by MuktoConnect; image input remains disabled until multimodal request mapping is implemented and tested.
+
 ## Retry & Automatic Fallback
 
 - **Smart retries:** Retries on network errors, timeouts, 408/409/425/429/5xx with exponential backoff + jitter

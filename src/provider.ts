@@ -74,7 +74,6 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   private cache: vscode.LanguageModelChatInformation[] = [];
   /** Model promoted by a successful automatic switch (session memory). */
   private promoted: string | undefined;
-  private warnedAboutKey = false;
   /** Cached model IDs per provider to avoid re-fetching. */
   private modelCache: Map<string, string[]> = new Map();
   /** In-memory quota cooldowns keyed by provider + model ID. */
@@ -115,21 +114,12 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       return [];
     }
 
-    const apiKey = await this.resolveApiKey(options.silent);
+    // Model discovery must be side-effect-free: VS Code may call it repeatedly.
+    // Missing credentials simply hide this provider until the user configures it
+    // explicitly through the MuktoConnect management command.
+    const apiKey = await this.resolveApiKey();
     if (this.spec.requiresKey && !apiKey) {
-      if (!options.silent && !this.warnedAboutKey) {
-        this.warnedAboutKey = true;
-        vscode.window
-          .showWarningMessage(
-            `${this.spec.displayName}: no API key set. Run "MuktoConnect: Manage ${this.spec.displayName} Provider" to add one.`,
-            'Manage',
-          )
-          .then((choice) => {
-            if (choice === 'Manage') {
-              void vscode.commands.executeCommand(`muktoconnect.manage${commandSuffix(this.spec.id)}`);
-            }
-          });
-      }
+      this.log(`${this.spec.displayName}: API key is not configured; no models exposed.`);
       return [];
     }
 
@@ -205,26 +195,10 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     return parseModelIds(await response.json());
   }
 
-  private async resolveApiKey(prompt: boolean): Promise<string | undefined> {
-    const existing = await this.secrets.get(this.spec.secretKey);
-    if (existing) {
-      return existing;
-    }
-    if (!prompt || !this.spec.requiresKey) {
-      return undefined;
-    }
-    const entered = await vscode.window.showInputBox({
-      title: `${this.spec.displayName} API key`,
-      prompt: `Enter your ${this.spec.displayName} API key (stored in VS Code SecretStorage)`,
-      password: true,
-      ignoreFocusOut: true,
-    });
-    const trimmed = entered?.trim();
-    if (trimmed) {
-      await this.secrets.store(this.spec.secretKey, trimmed);
-      return trimmed;
-    }
-    return undefined;
+  private async resolveApiKey(): Promise<string | undefined> {
+    // Never prompt from model discovery. VS Code can request model information
+    // repeatedly while opening chat, changing model pickers, or entering Agent mode.
+    return this.secrets.get(this.spec.secretKey);
   }
 
   // ----------------------------------------------------------------- requests
@@ -857,19 +831,6 @@ function isQuotaLimitError(error: unknown): error is HttpError {
 
 function dedupe(values: readonly string[]): string[] {
   return [...new Set(values.filter((value) => value.length > 0))];
-}
-
-function commandSuffix(vendor: VendorId): string {
-  switch (vendor) {
-    case 'muktodwar':
-      return 'MuktoDwar';
-    case 'kilo':
-      return 'Kilo';
-    case 'opencode':
-      return 'OpenCode';
-    default:
-      return 'Custom';
-  }
 }
 
 function describe(error: unknown): string {

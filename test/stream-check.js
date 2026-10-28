@@ -35,6 +35,8 @@ class ToolResultPart {
   }
 }
 
+const promptCounts = { warning: 0, input: 0 };
+
 const vscodeStub = {
   EventEmitter: class {
     constructor() {
@@ -57,8 +59,8 @@ const vscodeStub = {
   },
   window: {
     setStatusBarMessage: () => ({ dispose() {} }),
-    showWarningMessage: async () => undefined,
-    showInputBox: async () => undefined,
+    showWarningMessage: async () => { promptCounts.warning += 1; return undefined; },
+    showInputBox: async () => { promptCounts.input += 1; return undefined; },
   },
   LanguageModelTextPart: TextPart,
   LanguageModelToolCallPart: ToolCallPart,
@@ -201,6 +203,21 @@ const server = http.createServer((req, res) => {
     ]);
     return;
   }
+  if (name === 'toolcall-multiple') {
+    sse(res, [
+      JSON.stringify({ choices: [{ delta: { tool_calls: [
+        { index: 0, id: 'call_read', function: { name: 'read_file', arguments: '' } },
+        { index: 1, id: 'call_list', function: { name: 'list_dir', arguments: '' } },
+      ] } }] }),
+      JSON.stringify({ choices: [{ delta: { tool_calls: [
+        { index: 0, function: { arguments: '{"path":"src/app.ts"}' } },
+        { index: 1, function: { arguments: '{"path":"src"}' } },
+      ] } }] }),
+      JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }),
+      '[DONE]',
+    ]);
+    return;
+  }
   if (name === 'toolcall-fragmented') {
     // Kilo/OpenAI style: first delta carries id + name with empty arguments,
     // the JSON arrives one fragment per delta, finish_reason comes last.
@@ -250,6 +267,7 @@ const server = http.createServer((req, res) => {
 
 const buildDir = process.env.MUKTO_BUILD || path.join(__dirname, '..', 'out');
 const { OpenAICompatProvider, ProviderRegistry } = require(path.join(buildDir, 'provider.js'));
+const { toOpenAiMessages } = require(path.join(buildDir, 'messages.js'));
 
 const secrets = new Map();
 const secretStorage = {
@@ -345,6 +363,39 @@ async function check(route, label, fn) {
 (async () => {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}/v1`;
+
+  await check('sse-ok', 'missing required credentials never prompt during repeated model discovery', async () => {
+    // Populate the custom provider's base URL, then simulate required authentication.
+    makeProvider(base);
+    const requiredSpec = { ...spec, requiresKey: true };
+    const requiredProvider = new OpenAICompatProvider('custom', requiredSpec, secretStorage, new ProviderRegistry(), (m) => logs.push(m));
+    const before = { ...promptCounts };
+    const first = await requiredProvider.provideLanguageModelChatInformation({ silent: false }, makeToken());
+    const second = await requiredProvider.provideLanguageModelChatInformation({ silent: false }, makeToken());
+    assert.deepStrictEqual(first, []);
+    assert.deepStrictEqual(second, []);
+    assert.deepStrictEqual(promptCounts, before, 'discovery must not open warning or input prompts');
+  });
+
+  await check('sse-ok', 'Copilot tool calls and tool results map to OpenAI message roles and call ids', async () => {
+    const mapped = toOpenAiMessages([
+      {
+        role: vscodeStub.LanguageModelChatMessageRole.Assistant,
+        content: [new TextPart('I will inspect the file.'), new ToolCallPart('call_read', 'read_file', { path: 'src/app.ts' })],
+      },
+      {
+        role: vscodeStub.LanguageModelChatMessageRole.User,
+        content: [new ToolResultPart('call_read', [new TextPart('export const answer = 42;')])],
+      },
+    ]);
+    assert.deepStrictEqual(mapped, [
+      { role: 'assistant', content: 'I will inspect the file.' },
+      { role: 'assistant', content: null, tool_calls: [
+        { id: 'call_read', type: 'function', function: { name: 'read_file', arguments: '{"path":"src/app.ts"}' } },
+      ] },
+      { role: 'tool', content: 'export const answer = 42;', tool_call_id: 'call_read' },
+    ]);
+  });
 
   await check('sse-ok', 'streamed SSE response is passed through', async () => {
     const parts = await run(base);
@@ -470,6 +521,16 @@ async function check(route, label, fn) {
       return;
     }
     assert.fail(`resolved with ${parts.length} parts instead of throwing`);
+  });
+
+  await check('toolcall-multiple', 'multiple parallel tool calls preserve independent ids, names, and arguments', async () => {
+    const parts = await run(base);
+    const calls = parts.filter((part) => part instanceof ToolCallPart);
+    assert.strictEqual(calls.length, 2, `expected 2 tool calls, got ${JSON.stringify(parts)}`);
+    assert.deepStrictEqual(calls.map((call) => ({ id: call.callId, name: call.name, input: call.input })), [
+      { id: 'call_read', name: 'read_file', input: { path: 'src/app.ts' } },
+      { id: 'call_list', name: 'list_dir', input: { path: 'src' } },
+    ]);
   });
 
   await check('toolcall-fragmented', 'fragmented tool call streams with its full arguments', async () => {
