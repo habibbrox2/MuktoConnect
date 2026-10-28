@@ -338,15 +338,17 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
             throw error;
           }
           const quotaLimit = isQuotaLimitError(error);
-          if (quotaLimit) {
-            quotaFallbackOnlyFree = true;
-            const retryAfterMs = error instanceof HttpError ? error.getRetryAfterMs() : undefined;
-            // Free-usage quota errors will not heal by retrying the same model.
-            // Keep the provider/model in cooldown and immediately try the next candidate.
+          if (error instanceof HttpError && error.status === 429) {
+            if (quotaLimit) {
+              quotaFallbackOnlyFree = true;
+            }
+            const retryAfterMs = error.getRetryAfterMs();
+            // Rate limits are model/provider-specific: don't burn retries against a
+            // throttled endpoint. Honor Retry-After, with a bounded safe default.
             const cooldownMs = Math.min(Math.max(retryAfterMs ?? 60000, 1000), 15 * 60 * 1000);
             this.quotaCooldowns.set(cooldownKey, Date.now() + cooldownMs);
             this.log(
-              `${this.spec.displayName}: quota limit detected for ${cooldownKey}; skipping same-model retries and cooling down for ${Math.ceil(cooldownMs / 1000)}s.`,
+              `${this.spec.displayName}: ${quotaLimit ? 'quota limit' : 'rate limit'} for ${cooldownKey}; cooling down for ${Math.ceil(cooldownMs / 1000)}s and trying another eligible model.`,
             );
             lastError = error;
             if (target.info.id === this.promoted || this.promoted === cooldownKey) {
