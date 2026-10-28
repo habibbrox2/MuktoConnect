@@ -2,7 +2,7 @@
   "name": "muktoconnect",
   "displayName": "MuktoConnect — Custom AI Providers for Copilot Chat",
   "description": "Connect custom AI providers and models to GitHub Copilot Chat: MuktoDwar local gateway, Kilo Gateway, OpenCode Console / Zen and any OpenAI-compatible endpoint — with automatic retry and model fallback.",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "habibbrox2",
   "license": "MIT",
   "icon": "assets/icon.png",
@@ -36,12 +36,12 @@
       },
       {
         "vendor": "kilo",
-        "displayName": "Kilo Gateway",
+        "displayName": "M-Kilo",
         "managementCommand": "muktoconnect.manageKilo"
       },
       {
         "vendor": "opencode",
-        "displayName": "OpenCode Console / Zen",
+        "displayName": "M-OpenCode",
         "managementCommand": "muktoconnect.manageOpenCode"
       },
       {
@@ -63,12 +63,12 @@
       },
       {
         "command": "muktoconnect.manageKilo",
-        "title": "Manage Kilo Gateway Provider",
+        "title": "Manage M-Kilo Provider",
         "category": "MuktoConnect"
       },
       {
         "command": "muktoconnect.manageOpenCode",
-        "title": "Manage OpenCode Console / Zen Provider",
+        "title": "Manage M-OpenCode Provider",
         "category": "MuktoConnect"
       },
       {
@@ -131,7 +131,7 @@
         "muktoconnect.kilo.baseUrl": {
           "type": "string",
           "default": "https://ai-gateway.kilo.ai/api/v1",
-          "description": "Kilo Gateway OpenAI-compatible base URL. Chat requests go to <baseUrl>/chat/completions."
+          "description": "M-Kilo OpenAI-compatible base URL. Chat requests go to <baseUrl>/chat/completions."
         },
         "muktoconnect.kilo.modelsUrl": {
           "type": "string",
@@ -144,7 +144,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Extra model IDs to expose for Kilo Gateway (always listed, even when the models endpoint is unreachable)."
+          "description": "Extra model IDs to expose for M-Kilo (always listed, even when the models endpoint is unreachable)."
         },
         "muktoconnect.kilo.fallbackModels": {
           "type": "array",
@@ -152,17 +152,17 @@
             "type": "string"
           },
           "default": [],
-          "description": "Optional ordered fallback chain when the selected Kilo Gateway model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
+          "description": "Optional ordered fallback chain when the selected M-Kilo model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
         },
         "muktoconnect.opencode.baseUrl": {
           "type": "string",
           "default": "https://opencode.ai/inference/openai/v1",
-          "description": "OpenCode Console / Zen OpenAI-compatible base URL. Chat requests go to <baseUrl>/chat/completions."
+          "description": "M-OpenCode OpenAI-compatible base URL. Chat requests go to <baseUrl>/chat/completions."
         },
         "muktoconnect.opencode.modelsUrl": {
           "type": "string",
           "default": "https://opencode.ai/inference/v1/models",
-          "description": "Model list URL for OpenCode Console / Zen (differs from the chat base URL). Leave empty to use <baseUrl>/models."
+          "description": "Model list URL for M-OpenCode (differs from the chat base URL). Leave empty to use <baseUrl>/models."
         },
         "muktoconnect.opencode.modelIds": {
           "type": "array",
@@ -170,7 +170,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Extra model IDs to expose for OpenCode Console / Zen."
+          "description": "Extra model IDs to expose for M-OpenCode."
         },
         "muktoconnect.opencode.fallbackModels": {
           "type": "array",
@@ -178,7 +178,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Optional ordered fallback chain when the selected OpenCode Console / Zen model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
+          "description": "Optional ordered fallback chain when the selected M-OpenCode model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
         },
         "muktoconnect.custom.baseUrl": {
           "type": "string",
