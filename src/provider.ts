@@ -353,7 +353,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
             const cooldownMs = Math.min(Math.max(retryAfterMs ?? 60000, 1000), 15 * 60 * 1000);
             this.quotaCooldowns.set(cooldownKey, Date.now() + cooldownMs);
             this.log(
-              `${this.spec.displayName}: ${quotaLimit ? 'quota limit' : 'rate limit'} for ${cooldownKey}; cooling down for ${Math.ceil(cooldownMs / 1000)}s and trying another eligible model.`,
+              `${this.spec.displayName}: ${quotaLimit ? 'quota limit detected' : 'rate limit detected'} for ${cooldownKey}; cooling down for ${Math.ceil(cooldownMs / 1000)}s and trying another eligible model.`,
             );
             lastError = error;
             failureSummary.push(`${cooldownKey}: ${describe(error)}`);
