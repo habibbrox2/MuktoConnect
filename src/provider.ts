@@ -891,8 +891,23 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
         this.log(`Unified model list: ${provider.vendor} discovery failed — ${describe(error)}`);
       }
     }
-    this.log(`Unified model list: exposing ${all.length} model(s) across ${this.providers.length} backend(s).`);
-    return all;
+    // Keep the synthetic auto model at the top, then globally rank free models
+    // ahead of paid models across every backend (not just within each provider).
+    all.sort((a, b) => Number(isFreeModelRef(b.id)) - Number(isFreeModelRef(a.id)) ||
+      a.name.localeCompare(b.name));
+    const autoModel: vscode.LanguageModelChatInformation = {
+      id: AUTO_MODEL_ID,
+      name: 'MuktoConnect-Auto',
+      family: 'muktoconnect',
+      version: '1.0.0',
+      tooltip: 'Automatically tries eligible free models across all configured providers first, then other eligible models.',
+      detail: 'Free-first automatic fallback across MuktoConnect providers',
+      maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
+      maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+      capabilities: { imageInput: false, toolCalling: true },
+    };
+    this.log(`Unified model list: exposing MuktoConnect-Auto plus ${all.length} model(s) across ${this.providers.length} backend(s).`);
+    return [autoModel, ...all];
   }
 
   async provideLanguageModelChatResponse(
@@ -902,6 +917,30 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
     token: vscode.CancellationToken,
   ): Promise<void> {
+    if (model.id === AUTO_MODEL_ID) {
+      const candidates: { provider: OpenAICompatProvider; id: string }[] = [];
+      for (const provider of this.providers) {
+        const ids = await provider.getEligibleFallbackModelIds();
+        for (const id of ids) {
+          candidates.push({ provider, id });
+        }
+      }
+      // Choose a free model first across all backends. If no free model is
+      // currently eligible, retain a usable non-free option rather than fail early.
+      candidates.sort((a, b) =>
+        Number(isFreeModelRef(b.id)) - Number(isFreeModelRef(a.id)) ||
+        a.provider.vendor.localeCompare(b.provider.vendor) ||
+        a.id.localeCompare(b.id));
+      const first = candidates[0];
+      if (!first) {
+        throw new Error('MuktoConnect-Auto: no eligible models found. Configure a provider URL and any required API key.');
+      }
+      this.log(`MuktoConnect-Auto: starting with ${first.provider.vendor}:${first.id}; free models are preferred.`);
+      const target = await first.provider.resolveTarget(first.id);
+      return first.provider.provideLanguageModelChatResponse(
+        target.info, messages, options, progress, token,
+      );
+    }
     const separator = model.id.indexOf(':');
     if (separator <= 0) {
       throw new Error(`Invalid MuktoConnect model reference: ${model.id}`);
@@ -946,6 +985,8 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
     this.changeEmitter.dispose();
   }
 }
+
+const AUTO_MODEL_ID = 'muktoconnect-auto';
 
 function isFreeModelRef(ref: string): boolean {
   return /free/i.test(ref);

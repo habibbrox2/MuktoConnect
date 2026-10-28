@@ -45,7 +45,7 @@ npm install
 npm run compile
 ```
 
-Run in Extension Development Host: open this folder in VS Code, press `F5`. In the new window, go to Chat → Manage Models and enable **MuktoConnect**. All models from configured backends (MuktoDwar, Kilo, OpenCode, and Custom) appear under this single provider; model names are prefixed with the backend ID to distinguish duplicate model IDs.
+Run in Extension Development Host: open this folder in VS Code, press `F5`. In the new window, go to Chat → Manage Models and enable **MuktoConnect**. All models from configured backends (MuktoDwar, Kilo, OpenCode, and Custom) appear under this single provider; model names are prefixed with the backend ID to distinguish duplicate model IDs. **MuktoConnect-Auto** appears first and starts with an eligible free model across configured backends, then uses the existing cross-provider fallback chain. If no free model is eligible, it starts with the first eligible model available.
 
 Package and install:
 ```bash
@@ -81,6 +81,7 @@ Verify in a VS Code Extension Development Host with a configured endpoint:
 
 - **Smart retries:** Retries on network errors, timeouts, 408/409/425/429/5xx with exponential backoff + jitter
 - **Fast failover:** Skips retries on 4xx client errors (except specific retryable ones)
+- **Free-first auto model:** Select `MuktoConnect-Auto` to start with an eligible free model across all configured backends.
 - **Cross-provider fallback:** Fail over to any configured provider/model
 - **Auto-promotion:** Successful fallback models become preferred for future requests
 - **Streaming safe:** No restart if output already streamed
