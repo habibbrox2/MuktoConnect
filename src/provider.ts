@@ -330,6 +330,12 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
           this.noteSuccess(model, target);
           return;
         } catch (error) {
+          if (attemptHasToolCall) {
+            // Tool-call intent may be buffered until arguments are complete. Switching models
+            // after a truncated tool-call stream could cause the Agent to execute it twice.
+            this.log(`${this.spec.displayName}: ${target.vendor}:${target.info.id} stream failed after tool-call generation began; refusing automatic retry/fallback to prevent duplicate tool execution.`);
+            throw error;
+          }
           if (attemptText.length > 0 && !attemptHasToolCall && retry.autoContinue && !token.isCancellationRequested) {
             this.log(
               `${this.spec.displayName}: ${target.vendor}:${target.info.id} stream interrupted after partial text; attempting one continuation.`,
