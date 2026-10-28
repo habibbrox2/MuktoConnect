@@ -34,6 +34,20 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
+    vscode.commands.registerCommand('muktoconnect.manageAll', async () => {
+      const picked = await vscode.window.showQuickPick(
+        VENDORS.map((spec) => ({ label: spec.displayName, description: spec.id, spec })),
+        { title: 'Manage MuktoConnect Provider', placeHolder: 'Choose a backend to configure' },
+      );
+      if (picked) {
+        const provider = registry.get(picked.spec.id);
+        if (provider) {
+          await manageProvider(picked.spec, provider, context, log);
+        }
+      }
+    }),
+  );
+  context.subscriptions.push(
     vscode.commands.registerCommand('muktoconnect.showLogs', () => output.show(true)),
   );
   context.subscriptions.push(
