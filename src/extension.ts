@@ -8,6 +8,20 @@ export function activate(context: vscode.ExtensionContext): void {
   const log = (message: string): void => output.appendLine(`[${new Date().toISOString()}] ${message}`);
   log('MuktoConnect activated.');
 
+  // Respect an existing user or organization preference. If no chat default is
+  // configured, make MuktoConnect-Auto the default for new chat conversations.
+  const chatConfiguration = vscode.workspace.getConfiguration('chat');
+  if (!chatConfiguration.get<string>('defaultModel')) {
+    void chatConfiguration.update(
+      'defaultModel',
+      'muktoconnect:muktoconnect-auto',
+      vscode.ConfigurationTarget.Global,
+    ).then(
+      () => log('Set chat.defaultModel to muktoconnect:muktoconnect-auto (no previous default was configured).'),
+      (error: unknown) => log(`Could not set chat.defaultModel: ${error instanceof Error ? error.message : String(error)}`),
+    );
+  }
+
   const registry = new ProviderRegistry();
 
   for (const spec of VENDORS) {
