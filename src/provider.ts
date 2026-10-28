@@ -292,11 +292,14 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       const cooldownKey = `${target.vendor}:${target.info.id}`;
       if (quotaFallbackOnlyFree && !this.registry.get(target.vendor)?.isFreeModelId(target.info.id)) {
         this.log(`${this.spec.displayName}: skipping non-free fallback ${cooldownKey} after a free-usage quota limit.`);
+        failureSummary.push(`${cooldownKey}: skipped because free-tier quota was exhausted and this model is not confirmed free`);
         continue;
       }
       const cooldownUntil = this.quotaCooldowns.get(cooldownKey) ?? 0;
       if (cooldownUntil > Date.now()) {
-        this.log(`${this.spec.displayName}: skipping ${cooldownKey}; quota cooldown has ${Math.ceil((cooldownUntil - Date.now()) / 1000)}s remaining.`);
+        const remainingSeconds = Math.ceil((cooldownUntil - Date.now()) / 1000);
+        this.log(`${this.spec.displayName}: skipping ${cooldownKey}; cooldown has ${remainingSeconds}s remaining.`);
+        failureSummary.push(`${cooldownKey}: skipped because cooldown has ${remainingSeconds}s remaining`);
         continue;
       }
       this.quotaCooldowns.delete(cooldownKey);
