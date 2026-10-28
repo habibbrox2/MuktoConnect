@@ -45,7 +45,7 @@ npm install
 npm run compile
 ```
 
-Run in Extension Development Host: open this folder in VS Code, press `F5`. In the new window, go to Chat → Manage Models and enable your providers.
+Run in Extension Development Host: open this folder in VS Code, press `F5`. In the new window, go to Chat → Manage Models and enable **MuktoConnect**. All models from configured backends (MuktoDwar, Kilo, OpenCode, and Custom) appear under this single provider; model names are prefixed with the backend ID to distinguish duplicate model IDs.
 
 Package and install:
 ```bash
@@ -62,6 +62,8 @@ Use `MuktoConnect: Manage <Provider> Provider` commands to configure:
 - Base URLs and model list URLs
 - Custom model IDs
 - Fallback model chains (e.g., `muktodwar:mukto-auto/free` or `kilo:openai/gpt-5.4`)
+
+**Unified model picker:** MuktoConnect registers one provider in VS Code. Its model list aggregates models from every configured backend and uses vendor-qualified model IDs so the same model ID from two providers does not collide. Use `MuktoConnect: Manage All Providers` to choose a backend to configure.
 
 Provider discovery is intentionally silent. If a required API key or base URL is missing, MuktoConnect exposes no models for that provider and does not show repeated prompts while Copilot Chat refreshes its model list. Configure providers explicitly with the management commands, then refresh the model list.
 
