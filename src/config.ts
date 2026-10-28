@@ -26,7 +26,7 @@ export const VENDORS: readonly VendorSpec[] = [
   },
   {
     id: 'kilo',
-    displayName: 'Kilo Gateway',
+    displayName: 'M-Kilo',
     defaultBaseUrl: 'https://ai-gateway.kilo.ai/api/v1',
     defaultModelsUrl: '',
     requiresKey: true,
@@ -34,7 +34,7 @@ export const VENDORS: readonly VendorSpec[] = [
   },
   {
     id: 'opencode',
-    displayName: 'OpenCode Console / Zen',
+    displayName: 'M-OpenCode',
     defaultBaseUrl: 'https://opencode.ai/inference/openai/v1',
     defaultModelsUrl: 'https://opencode.ai/inference/v1/models',
     requiresKey: true,
