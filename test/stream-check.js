@@ -203,6 +203,21 @@ const server = http.createServer((req, res) => {
     ]);
     return;
   }
+  if (name === 'toolcall-multiple') {
+    sse(res, [
+      JSON.stringify({ choices: [{ delta: { tool_calls: [
+        { index: 0, id: 'call_read', function: { name: 'read_file', arguments: '' } },
+        { index: 1, id: 'call_list', function: { name: 'list_dir', arguments: '' } },
+      ] } }] }),
+      JSON.stringify({ choices: [{ delta: { tool_calls: [
+        { index: 0, function: { arguments: '{"path":"src/app.ts"}' } },
+        { index: 1, function: { arguments: '{"path":"src"}' } },
+      ] } }] }),
+      JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }),
+      '[DONE]',
+    ]);
+    return;
+  }
   if (name === 'toolcall-fragmented') {
     // Kilo/OpenAI style: first delta carries id + name with empty arguments,
     // the JSON arrives one fragment per delta, finish_reason comes last.
@@ -485,6 +500,16 @@ async function check(route, label, fn) {
       return;
     }
     assert.fail(`resolved with ${parts.length} parts instead of throwing`);
+  });
+
+  await check('toolcall-multiple', 'multiple parallel tool calls preserve independent ids, names, and arguments', async () => {
+    const parts = await run(base);
+    const calls = parts.filter((part) => part instanceof ToolCallPart);
+    assert.strictEqual(calls.length, 2, `expected 2 tool calls, got ${JSON.stringify(parts)}`);
+    assert.deepStrictEqual(calls.map((call) => ({ id: call.callId, name: call.name, input: call.input })), [
+      { id: 'call_read', name: 'read_file', input: { path: 'src/app.ts' } },
+      { id: 'call_list', name: 'list_dir', input: { path: 'src' } },
+    ]);
   });
 
   await check('toolcall-fragmented', 'fragmented tool call streams with its full arguments', async () => {
