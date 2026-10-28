@@ -413,6 +413,7 @@ async function check(route, label, fn) {
     await run(base, {}, undefined, tools);
     const body = JSON.parse(requestBodies[requestBodies.length - 1]);
     assert.strictEqual(body.tools.length, 128, 'must never send more than 128 tool definitions');
+    assert.strictEqual(body.tool_choice, 'auto', 'must explicitly enable automatic tool selection when tools are available');
     assert.strictEqual(body.tools[0].function.name, 'tool_000');
     assert.strictEqual(body.tools[127].function.name, 'tool_127');
   });

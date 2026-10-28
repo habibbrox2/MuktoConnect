@@ -26,6 +26,17 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('muktoconnect.showLogs', () => output.show(true)),
   );
   context.subscriptions.push(
+    vscode.commands.registerCommand('muktoconnect.diagnoseModelSelection', () => {
+      const available = typeof vscode.lm?.registerLanguageModelChatProvider === 'function';
+      log(`Model-selection runtime diagnostic: VS Code ${vscode.version}; app=${vscode.env.appName}; language-model provider API=${available ? 'available' : 'unavailable'}.`);
+      log('The stable Language Model Chat Provider API does not expose a supported default-model-selection capability query. The proposed isDefault field is not a stable contract, so this diagnostic does not enable it or change model selection.');
+      output.show(true);
+      vscode.window.showInformationMessage(
+        `Diagnostics recorded for VS Code ${vscode.version}. Stable API default-model selection is not exposed.`,
+      );
+    }),
+  );
+  context.subscriptions.push(
     vscode.commands.registerCommand('muktoconnect.clearPromotedModel', () => {
       for (const spec of VENDORS) {
         const provider = registry.get(spec.id);
