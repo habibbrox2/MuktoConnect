@@ -276,6 +276,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     }
 
     let lastError: unknown;
+    const failureSummary: string[] = [];
     let quotaFallbackOnlyFree = false;
     for (const entry of targets) {
       if (token.isCancellationRequested) {
@@ -283,6 +284,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       }
       if (!entry.target) {
         lastError = entry.error ?? lastError;
+        failureSummary.push(`${entry.ref}: ${describe(entry.error ?? new Error('target unavailable'))}`);
         continue;
       }
 
@@ -351,6 +353,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
               `${this.spec.displayName}: ${quotaLimit ? 'quota limit' : 'rate limit'} for ${cooldownKey}; cooling down for ${Math.ceil(cooldownMs / 1000)}s and trying another eligible model.`,
             );
             lastError = error;
+            failureSummary.push(`${cooldownKey}: ${describe(error)}`);
             if (target.info.id === this.promoted || this.promoted === cooldownKey) {
               this.promoted = undefined;
             }
@@ -361,6 +364,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
             token.isCancellationRequested,
           );
           lastError = error;
+          failureSummary.push(`${cooldownKey} attempt ${attempt}: ${describe(error)}`);
           this.log(
             `${this.spec.displayName}: ${target.vendor}:${target.info.id} attempt ${attempt}/${maxAttempts}` +
               ` failed (${describe(error)}) → ${kind}`,
@@ -388,7 +392,11 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       }
     }
 
-    throw lastError instanceof Error ? lastError : new Error('All candidate models failed.');
+    const detail = failureSummary.slice(-6).join(' | ');
+    throw new Error(
+      `${this.spec.displayName}: all eligible candidate models failed${failureSummary.length ? ` (${failureSummary.length} failure(s))` : ''}.` +
+      (detail ? ` Recent failures: ${detail}` : lastError instanceof Error ? ` Last error: ${lastError.message}` : ''),
+    );
   }
 
   private noteSuccess(selected: vscode.LanguageModelChatInformation, target: ResolvedTarget): void {
