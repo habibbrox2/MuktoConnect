@@ -404,6 +404,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     onToolCallStart?: () => void,
   ): Promise<void> {
     const url = `${stripTrailingSlash(target.baseUrl)}/chat/completions`;
+    const targetDisplayName = VENDORS.find((vendor) => vendor.id === target.vendor)?.displayName ?? target.vendor;
     const requestMessages = toOpenAiMessages(messages);
     // Opt-in diagnostics are deliberately restricted to simple greetings.
     const greetingDiagnostics = vscode.workspace.getConfiguration('muktoconnect')
@@ -480,10 +481,10 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       } catch (error) {
         throw this.toStreamError(error, token, `POST ${url}`);
       }
-      this.log(`${this.spec.displayName}: POST ${url} (model=${target.info.id})`);
+      this.log(`${targetDisplayName}: POST ${url} (model=${target.info.id})`);
       if (!response.ok) {
         const text = await response.text().catch(() => '');
-        this.log(`${this.spec.displayName}: HTTP ${response.status} ${response.statusText} - ${text.slice(0, 200)}`);
+        this.log(`${targetDisplayName}: HTTP ${response.status} ${response.statusText} - ${text.slice(0, 200)}`);
         throw new HttpError(
           `POST ${url} -> ${response.status} ${response.statusText}`,
           response.status,
@@ -494,7 +495,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       if (!response.body) {
         throw new HttpError(`POST ${url}: empty response body`, undefined);
       }
-      this.log(`${this.spec.displayName}: streaming response started`);
+      this.log(`${targetDisplayName}: streaming response started`);
       let stats: StreamStats;
       try {
         stats = await this.consume(response.body, diagnosticProgress, token, onToolCallStart);
@@ -504,7 +505,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         throw this.toStreamError(error, token, `POST ${url}`);
       }
       this.log(
-        `${this.spec.displayName}: streaming response ended ` +
+        `${targetDisplayName}: streaming response ended ` +
           `(${stats.chunks} chunks, ${stats.payloads} payloads, ${stats.parts} parts)`,
       );
       if (greetingRequest) {
@@ -526,7 +527,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       if (stats.payloads === 0 && stats.raw.trim()) {
         const completion = parseNonStreamedCompletion(stats.raw);
         if (completion) {
-          this.log(`${this.spec.displayName}: response was not streamed; using the buffered completion.`);
+          this.log(`${targetDisplayName}: response was not streamed; using the buffered completion.`);
           if (this.reportCompletion(completion, diagnosticProgress)) {
             return;
           }
