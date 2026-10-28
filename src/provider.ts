@@ -105,7 +105,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
 
   isFreeModelId(modelId: string): boolean {
     const tier = this.modelTiers.get(modelId);
-    return tier === 'free' || (tier === undefined && /free/i.test(modelId));
+    return tier === 'free' || (tier !== 'paid' && /free/i.test(modelId));
   }
 
   // ---------------------------------------------------------------- discovery
@@ -154,8 +154,8 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     const ids = dedupe([...settings.modelIds, ...discovered]);
     // Sort free models first
     const sortedIds = [...ids].sort((a, b) => {
-      const aFree = /free/i.test(a) ? 1 : 0;
-      const bFree = /free/i.test(b) ? 1 : 0;
+      const aFree = this.isFreeModelId(a) ? 1 : 0;
+      const bFree = this.isFreeModelId(b) ? 1 : 0;
       if (aFree !== bFree) {
         return bFree - aFree;
       }
