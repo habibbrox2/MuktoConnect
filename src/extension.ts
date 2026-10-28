@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { readVendorSettings, VENDORS, VendorId, VendorSpec } from './config';
 import { parseModelIds, sleep, backoffDelay } from './openai';
-import { OpenAICompatProvider, ProviderRegistry } from './provider';
+import { OpenAICompatProvider, ProviderRegistry, UnifiedLanguageModelProvider } from './provider';
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel('MuktoConnect');
@@ -14,7 +14,6 @@ export function activate(context: vscode.ExtensionContext): void {
     const provider = new OpenAICompatProvider(spec.id, spec, context.secrets, registry, log);
     registry.register(provider);
 
-    context.subscriptions.push(vscode.lm.registerLanguageModelChatProvider(spec.id, provider));
     context.subscriptions.push(
       vscode.commands.registerCommand(managementCommand(spec.id), () =>
         manageProvider(spec, provider, context, log),
@@ -22,6 +21,32 @@ export function activate(context: vscode.ExtensionContext): void {
     );
   }
 
+  // Register exactly one VS Code-visible provider; it aggregates all configured backends.
+  const unifiedProvider = new UnifiedLanguageModelProvider(
+    VENDORS.map((spec) => registry.get(spec.id)).filter(
+      (provider): provider is OpenAICompatProvider => provider !== undefined,
+    ),
+    log,
+  );
+  context.subscriptions.push(
+    unifiedProvider,
+    vscode.lm.registerLanguageModelChatProvider('muktoconnect', unifiedProvider),
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('muktoconnect.manageAll', async () => {
+      const picked = await vscode.window.showQuickPick(
+        VENDORS.map((spec) => ({ label: spec.displayName, description: spec.id, spec })),
+        { title: 'Manage MuktoConnect Provider', placeHolder: 'Choose a backend to configure' },
+      );
+      if (picked) {
+        const provider = registry.get(picked.spec.id);
+        if (provider) {
+          await manageProvider(picked.spec, provider, context, log);
+        }
+      }
+    }),
+  );
   context.subscriptions.push(
     vscode.commands.registerCommand('muktoconnect.showLogs', () => output.show(true)),
   );

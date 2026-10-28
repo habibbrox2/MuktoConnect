@@ -30,28 +30,8 @@
   "contributes": {
     "languageModelChatProviders": [
       {
-        "vendor": "muktodwar",
-        "displayName": "MuktoDwar",
-        "managementCommand": "muktoconnect.manageMuktoDwar"
-      },
-      {
-        "vendor": "kilo",
-        "displayName": "M-Kilo",
-        "managementCommand": "muktoconnect.manageKilo"
-      },
-      {
-        "vendor": "opencode",
-        "displayName": "M-OpenCode",
-        "managementCommand": "muktoconnect.manageOpenCode"
-      },
-      {
-        "vendor": "custom",
-        "displayName": "Custom OpenAI-Compatible",
-        "managementCommand": "muktoconnect.manageCustom"
-      },
-      {
         "vendor": "muktoconnect",
-        "displayName": "MuktoConnect (All)",
+        "displayName": "MuktoConnect",
         "managementCommand": "muktoconnect.manageAll"
       }
     ],
@@ -94,6 +74,11 @@
       {
         "command": "muktoconnect.checkForUpdates",
         "title": "Check for Updates",
+        "category": "MuktoConnect"
+      },
+      {
+        "command": "muktoconnect.manageAll",
+        "title": "Manage All Providers",
         "category": "MuktoConnect"
       }
     ],
