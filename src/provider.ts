@@ -846,6 +846,107 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   }
 }
 
+
+/**
+ * One VS Code-visible provider that aggregates models from every configured backend.
+ * IDs are vendor-qualified internally so identical model IDs from different vendors
+ * remain distinct in the model picker.
+ */
+export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatProvider {
+  private readonly changeEmitter = new vscode.EventEmitter<void>();
+  readonly onDidChangeLanguageModelChatInformation = this.changeEmitter.event;
+  private readonly subscriptions: vscode.Disposable[];
+
+  constructor(
+    private readonly providers: readonly OpenAICompatProvider[],
+    private readonly log: (message: string) => void,
+  ) {
+    this.subscriptions = providers.map((provider) =>
+      provider.onDidChangeLanguageModelChatInformation(() => this.changeEmitter.fire()),
+    );
+  }
+
+  async provideLanguageModelChatInformation(
+    options: vscode.PrepareLanguageModelChatModelOptions,
+    token: vscode.CancellationToken,
+  ): Promise<vscode.LanguageModelChatInformation[]> {
+    const all: vscode.LanguageModelChatInformation[] = [];
+    for (const provider of this.providers) {
+      if (token.isCancellationRequested) {
+        return [];
+      }
+      try {
+        const models = await provider.provideLanguageModelChatInformation(options, token);
+        for (const model of models) {
+          all.push({
+            ...model,
+            id: `${provider.vendor}:${model.id}`,
+            name: `${provider.vendor} / ${model.name}`,
+            family: provider.vendor,
+            tooltip: `${provider.vendor} • ${model.name}${model.tooltip ? ` • ${model.tooltip}` : ''}`,
+            detail: `${provider.vendor} • ${model.detail ?? model.name}`,
+          });
+        }
+      } catch (error) {
+        this.log(`Unified model list: ${provider.vendor} discovery failed — ${describe(error)}`);
+      }
+    }
+    this.log(`Unified model list: exposing ${all.length} model(s) across ${this.providers.length} backend(s).`);
+    return all;
+  }
+
+  async provideLanguageModelChatResponse(
+    model: vscode.LanguageModelChatInformation,
+    messages: readonly vscode.LanguageModelChatRequestMessage[],
+    options: vscode.ProvideLanguageModelChatResponseOptions,
+    progress: vscode.Progress<vscode.LanguageModelResponsePart>,
+    token: vscode.CancellationToken,
+  ): Promise<void> {
+    const separator = model.id.indexOf(':');
+    if (separator <= 0) {
+      throw new Error(`Invalid MuktoConnect model reference: ${model.id}`);
+    }
+    const vendor = model.id.slice(0, separator) as VendorId;
+    const provider = this.providers.find((candidate) => candidate.vendor === vendor);
+    if (!provider) {
+      throw new Error(`MuktoConnect backend "${vendor}" is not available.`);
+    }
+    const originalId = model.id.slice(separator + 1);
+    const originalModel: vscode.LanguageModelChatInformation = {
+      ...model,
+      id: originalId,
+      name: originalId,
+      family: vendor,
+    };
+    return provider.provideLanguageModelChatResponse(originalModel, messages, options, progress, token);
+  }
+
+  provideTokenCount(
+    model: vscode.LanguageModelChatInformation,
+    text: string | vscode.LanguageModelChatRequestMessage,
+    token: vscode.CancellationToken,
+  ): Promise<number> {
+    const separator = model.id.indexOf(':');
+    const vendor = separator > 0 ? model.id.slice(0, separator) : '';
+    const provider = this.providers.find((candidate) => candidate.vendor === vendor);
+    if (!provider) {
+      return Promise.resolve(typeof text === 'string' ? Math.ceil(text.length / 4) : 0);
+    }
+    return provider.provideTokenCount(
+      { ...model, id: model.id.slice(separator + 1) },
+      text,
+      token,
+    );
+  }
+
+  dispose(): void {
+    for (const subscription of this.subscriptions) {
+      subscription.dispose();
+    }
+    this.changeEmitter.dispose();
+  }
+}
+
 function isFreeModelRef(ref: string): boolean {
   return /free/i.test(ref);
 }
