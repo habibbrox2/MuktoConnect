@@ -16,6 +16,7 @@ import {
   HttpError,
   NonStreamedCompletion,
   parseModelIds,
+  parseModelTiers,
   parseNonStreamedCompletion,
   readDelta,
   sleep,
@@ -78,6 +79,8 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   private modelCache: Map<string, string[]> = new Map();
   /** In-memory quota cooldowns keyed by provider + model ID. */
   private readonly quotaCooldowns = new Map<string, number>();
+  /** Tier hints reported by the provider's model catalogue; unknown is never treated as free. */
+  private readonly modelTiers = new Map<string, 'free' | 'paid' | 'unknown'>();
 
   constructor(
     readonly vendor: VendorId,
@@ -98,6 +101,11 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   }
   clearModelCache(): void {
     this.modelCache.clear();
+  }
+
+  isFreeModelId(modelId: string): boolean {
+    const tier = this.modelTiers.get(modelId);
+    return tier === 'free' || (tier === undefined && /free/i.test(modelId));
   }
 
   // ---------------------------------------------------------------- discovery
@@ -192,7 +200,11 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     if (!response.ok) {
       throw new HttpError(`GET ${url} -> ${response.status}`, response.status);
     }
-    return parseModelIds(await response.json());
+    const payload: unknown = await response.json();
+    for (const [id, tier] of parseModelTiers(payload)) {
+      this.modelTiers.set(id, tier);
+    }
+    return parseModelIds(payload);
   }
 
   private async resolveApiKey(): Promise<string | undefined> {
@@ -240,7 +252,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     const dynamicFallbacks = [...eligibleRefs].filter((ref) => ref !== model.id);
     // Prefer explicitly free models whenever choosing a fallback, regardless of provider order.
     const orderedFallbacks = dedupe([...configuredFallbacks, ...dynamicFallbacks]).sort(
-      (a, b) => Number(isFreeModelRef(b)) - Number(isFreeModelRef(a)),
+      (a, b) => Number(this.isFreeRef(b)) - Number(this.isFreeRef(a)),
     );
     const promoted = this.promoted && eligibleRefs.has(this.promoted) ? this.promoted : undefined;
     if (this.promoted && !promoted) {
@@ -276,7 +288,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
 
       const target = entry.target;
       const cooldownKey = `${target.vendor}:${target.info.id}`;
-      if (quotaFallbackOnlyFree && !isFreeModelRef(target.info.id)) {
+      if (quotaFallbackOnlyFree && !this.registry.get(target.vendor)?.isFreeModelId(target.info.id)) {
         this.log(`${this.spec.displayName}: skipping non-free fallback ${cooldownKey} after a free-usage quota limit.`);
         continue;
       }
@@ -787,6 +799,16 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
   }
 
   /** Resolve a `modelId` or `vendor:modelId` reference into a concrete target. */
+  private isFreeRef(ref: string): boolean {
+    const separator = ref.indexOf(':');
+    if (separator > 0) {
+      const vendor = ref.slice(0, separator) as VendorId;
+      const provider = this.registry.get(vendor);
+      return provider ? provider.isFreeModelId(ref.slice(separator + 1)) : /free/i.test(ref);
+    }
+    return this.isFreeModelId(ref);
+  }
+
   private async resolveRef(
     ref: string,
     selected: vscode.LanguageModelChatInformation,
@@ -893,7 +915,7 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
     }
     // Keep the synthetic auto model at the top, then globally rank free models
     // ahead of paid models across every backend (not just within each provider).
-    all.sort((a, b) => Number(isFreeModelRef(b.id)) - Number(isFreeModelRef(a.id)) ||
+    all.sort((a, b) => Number(this.isFreeModelRef(b.id)) - Number(this.isFreeModelRef(a.id)) ||
       a.name.localeCompare(b.name));
     const autoModel: vscode.LanguageModelChatInformation = {
       id: AUTO_MODEL_ID,
@@ -928,7 +950,7 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
       // Choose a free model first across all backends. If no free model is
       // currently eligible, retain a usable non-free option rather than fail early.
       candidates.sort((a, b) =>
-        Number(isFreeModelRef(b.id)) - Number(isFreeModelRef(a.id)) ||
+        Number(b.provider.isFreeModelId(b.id)) - Number(a.provider.isFreeModelId(a.id)) ||
         a.provider.vendor.localeCompare(b.provider.vendor) ||
         a.id.localeCompare(b.id));
       const first = candidates[0];
@@ -976,6 +998,15 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
       text,
       token,
     );
+  }
+
+  private isFreeModelRef(ref: string): boolean {
+    const separator = ref.indexOf(':');
+    if (separator > 0) {
+      const provider = this.providers.find((candidate) => candidate.vendor === ref.slice(0, separator));
+      return provider ? provider.isFreeModelId(ref.slice(separator + 1)) : /free/i.test(ref);
+    }
+    return /free/i.test(ref);
   }
 
   dispose(): void {
