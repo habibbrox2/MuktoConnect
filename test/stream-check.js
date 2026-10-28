@@ -267,6 +267,7 @@ const server = http.createServer((req, res) => {
 
 const buildDir = process.env.MUKTO_BUILD || path.join(__dirname, '..', 'out');
 const { OpenAICompatProvider, ProviderRegistry } = require(path.join(buildDir, 'provider.js'));
+const { toOpenAiMessages } = require(path.join(buildDir, 'messages.js'));
 
 const secrets = new Map();
 const secretStorage = {
@@ -374,6 +375,26 @@ async function check(route, label, fn) {
     assert.deepStrictEqual(first, []);
     assert.deepStrictEqual(second, []);
     assert.deepStrictEqual(promptCounts, before, 'discovery must not open warning or input prompts');
+  });
+
+  await check('sse-ok', 'Copilot tool calls and tool results map to OpenAI message roles and call ids', async () => {
+    const mapped = toOpenAiMessages([
+      {
+        role: vscodeStub.LanguageModelChatMessageRole.Assistant,
+        content: [new TextPart('I will inspect the file.'), new ToolCallPart('call_read', 'read_file', { path: 'src/app.ts' })],
+      },
+      {
+        role: vscodeStub.LanguageModelChatMessageRole.User,
+        content: [new ToolResultPart('call_read', [new TextPart('export const answer = 42;')])],
+      },
+    ]);
+    assert.deepStrictEqual(mapped, [
+      { role: 'assistant', content: 'I will inspect the file.' },
+      { role: 'assistant', content: null, tool_calls: [
+        { id: 'call_read', type: 'function', function: { name: 'read_file', arguments: '{"path":"src/app.ts"}' } },
+      ] },
+      { role: 'tool', content: 'export const answer = 42;', tool_call_id: 'call_read' },
+    ]);
   });
 
   await check('sse-ok', 'streamed SSE response is passed through', async () => {
