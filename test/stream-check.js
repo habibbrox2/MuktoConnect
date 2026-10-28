@@ -172,7 +172,8 @@ const server = http.createServer((req, res) => {
   }
   if (name === 'toolcall-partial-truncated' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ data: [] }));
+    // Make a second model eligible so the test proves we refuse to fail over after tool intent.
+    res.end(JSON.stringify({ data: [{ id: 'fallback-model' }] }));
     return;
   }
   if (name === 'toolcall-partial-truncated' && req.method === 'POST') {
@@ -509,8 +510,9 @@ async function check(route, label, fn) {
     } catch (error) {
       assert.ok(error instanceof Error && error.message, 'should surface the interrupted stream error');
     }
-    assert.strictEqual(scenario.requests, 1, 'must not issue a continuation request after tool-call generation starts');
+    assert.strictEqual(scenario.requests, 1, 'must not issue a continuation or fallback request after tool-call generation starts');
     assert.strictEqual(requestBodies.length, 1);
+    assert.strictEqual(JSON.parse(requestBodies[0]).model, 'test-model');
   });
 
   await check('stall', 'a stream that stalls past request.timeoutMs fails the attempt', async () => {
