@@ -331,6 +331,47 @@ export function parseNonStreamedCompletion(body: string): NonStreamedCompletion 
   return result;
 }
 
+/** Provider model-list metadata when an endpoint exposes pricing/free-tier hints. Unknown stays unknown. */
+export type ModelTier = 'free' | 'paid' | 'unknown';
+
+export function parseModelTiers(payload: unknown): Map<string, ModelTier> {
+  const result = new Map<string, ModelTier>();
+  let entries: unknown[] = [];
+  if (Array.isArray(payload)) entries = payload;
+  else if (payload && typeof payload === 'object') {
+    const root = payload as Record<string, unknown>;
+    if (Array.isArray(root.data)) entries = root.data;
+    else if (Array.isArray(root.models)) entries = root.models;
+    else if (Array.isArray(root.results)) entries = root.results;
+  }
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue;
+    const item = entry as Record<string, unknown>;
+    const idValue = item.id ?? item.name ?? item.model;
+    if (typeof idValue !== 'string' || !idValue.trim()) continue;
+    const id = idValue.trim();
+    const explicitFree = item.free ?? item.is_free ?? item.isFree ?? item.free_tier ?? item.isFreeTier;
+    if (explicitFree === true) { result.set(id, 'free'); continue; }
+    if (explicitFree === false) { result.set(id, 'paid'); continue; }
+    const pricing = item.pricing && typeof item.pricing === 'object'
+      ? item.pricing as Record<string, unknown> : undefined;
+    const costFields = [item.input_cost, item.output_cost, item.prompt_cost, item.completion_cost,
+      pricing?.input, pricing?.output, pricing?.prompt, pricing?.completion];
+    const numericCosts = costFields.filter((v): v is number | string => typeof v === 'number' || typeof v === 'string')
+      .map(v => typeof v === 'number' ? v : (v.trim() ? Number(v) : Number.NaN))
+      .filter(v => Number.isFinite(v));
+    if (numericCosts.length > 0) {
+      result.set(id, numericCosts.every(v => v === 0) ? 'free' : 'paid');
+      continue;
+    }
+    const text = [item.tier, item.pricing_tier, item.cost_type].filter(v => typeof v === 'string').join(' ').toLowerCase();
+    if (/\bfree\b|\bno[- ]cost\b/.test(text)) result.set(id, 'free');
+    else if (/\bpaid\b|\bpro\b/.test(text)) result.set(id, 'paid');
+    else result.set(id, 'unknown');
+  }
+  return result;
+}
+
 /** Tolerant model-id extraction from `/models` responses. */
 export function parseModelIds(payload: unknown): string[] {
   let entries: unknown[] = [];
