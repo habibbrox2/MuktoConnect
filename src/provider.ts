@@ -990,15 +990,6 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
     );
   }
 
-  private isFreeModelRef(ref: string): boolean {
-    const separator = ref.indexOf(':');
-    if (separator > 0) {
-      const provider = this.providers.find((candidate) => candidate.vendor === ref.slice(0, separator));
-      return provider ? provider.isFreeModelId(ref.slice(separator + 1)) : /free/i.test(ref);
-    }
-    return /free/i.test(ref);
-  }
-
   dispose(): void {
     for (const subscription of this.subscriptions) {
       subscription.dispose();

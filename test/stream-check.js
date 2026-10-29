@@ -475,7 +475,8 @@ async function check(route, label, fn) {
     assert.fail(`resolved with ${parts.length} parts instead of throwing`);
   });
 
-  await check('partial-truncated', 'text-only partial response automatically continues without repeating the partial text', async () => {
+  await check('partial-truncated', 'opt-in text-only continuation does not repeat partial text', async () => {
+    CONFIG.set('retry.autoContinue', true);
     scenario.requests = 0;
     requestBodies.length = 0;
     const parts = await run(base);
@@ -487,6 +488,7 @@ async function check(route, label, fn) {
     assert.strictEqual(body.messages[1].content, 'Partial answer ');
     assert.strictEqual(body.messages[2].role, 'user');
     assert.match(body.messages[2].content, /Continue the previous answer/);
+    CONFIG.delete('retry.autoContinue');
   });
 
   await check('quota-free-fallback', 'fallback is disabled by default and selected-model errors surface directly', async () => {
