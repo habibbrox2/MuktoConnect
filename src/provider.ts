@@ -237,14 +237,23 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     // Eligibility is re-evaluated per request so removed credentials cannot leave
     // stale fallback targets active.
     const eligibleRefs = new Set<string>();
-    for (const spec of VENDORS) {
+    // Discover providers concurrently: a slow models endpoint should not make
+    // every other configured backend wait before the request can start.
+    const eligibleByProvider = await Promise.all(VENDORS.map(async (spec) => {
       const provider = this.registry.get(spec.id);
       if (!provider) {
-        continue;
+        return { vendor: spec.id, ids: [] as string[] };
       }
-      const ids = await provider.getEligibleFallbackModelIds();
-      for (const id of ids) {
-        eligibleRefs.add(spec.id === this.vendor ? id : `${spec.id}:${id}`);
+      try {
+        return { vendor: spec.id, ids: await provider.getEligibleFallbackModelIds() };
+      } catch (error) {
+        this.log(`${spec.displayName}: fallback eligibility check failed — ${describe(error)}`);
+        return { vendor: spec.id, ids: [] as string[] };
+      }
+    }));
+    for (const entry of eligibleByProvider) {
+      for (const id of entry.ids) {
+        eligibleRefs.add(entry.vendor === this.vendor ? id : `${entry.vendor}:${id}`);
       }
     }
 
@@ -313,8 +322,15 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         attempt += 1;
         let attemptText = '';
         let attemptHasToolCall = false;
+        let modelLabelReported = false;
         const attemptProgress: vscode.Progress<vscode.LanguageModelResponsePart> = {
           report: (part) => {
+            // VS Code's response-part API has no separate per-message model
+            // metadata field. Add the actual target to the message itself.
+            if (!modelLabelReported) {
+              modelLabelReported = true;
+              tracked.report(new vscode.LanguageModelTextPart(`_Model: ${target.vendor} / ${target.info.id}_\n\n`));
+            }
             if (part instanceof vscode.LanguageModelTextPart) {
               attemptText += part.value;
             } else if (part instanceof vscode.LanguageModelToolCallPart) {
