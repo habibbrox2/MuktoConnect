@@ -237,14 +237,23 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     // Eligibility is re-evaluated per request so removed credentials cannot leave
     // stale fallback targets active.
     const eligibleRefs = new Set<string>();
-    for (const spec of VENDORS) {
+    // Discover providers concurrently: a slow models endpoint should not make
+    // every other configured backend wait before the request can start.
+    const eligibleByProvider = await Promise.all(VENDORS.map(async (spec) => {
       const provider = this.registry.get(spec.id);
       if (!provider) {
-        continue;
+        return { vendor: spec.id, ids: [] as string[] };
       }
-      const ids = await provider.getEligibleFallbackModelIds();
-      for (const id of ids) {
-        eligibleRefs.add(spec.id === this.vendor ? id : `${spec.id}:${id}`);
+      try {
+        return { vendor: spec.id, ids: await provider.getEligibleFallbackModelIds() };
+      } catch (error) {
+        this.log(`${spec.displayName}: fallback eligibility check failed — ${describe(error)}`);
+        return { vendor: spec.id, ids: [] as string[] };
+      }
+    }));
+    for (const entry of eligibleByProvider) {
+      for (const id of entry.ids) {
+        eligibleRefs.add(entry.vendor === this.vendor ? id : `${entry.vendor}:${id}`);
       }
     }
 
@@ -313,8 +322,15 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
         attempt += 1;
         let attemptText = '';
         let attemptHasToolCall = false;
+        let modelLabelReported = false;
         const attemptProgress: vscode.Progress<vscode.LanguageModelResponsePart> = {
           report: (part) => {
+            // VS Code's response-part API has no separate per-message model
+            // metadata field. Add the actual target to the message itself.
+            if (!modelLabelReported) {
+              modelLabelReported = true;
+              tracked.report(new vscode.LanguageModelTextPart(`_Model: ${target.vendor} / ${target.info.id}_\n\n`));
+            }
             if (part instanceof vscode.LanguageModelTextPart) {
               attemptText += part.value;
             } else if (part instanceof vscode.LanguageModelToolCallPart) {
@@ -938,7 +954,7 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
       a.name.localeCompare(b.name));
     const autoModel: vscode.LanguageModelChatInformation = {
       id: AUTO_MODEL_ID,
-      name: 'MuktoConnect-Auto',
+      name: 'Auto',
       family: 'muktoconnect',
       version: '1.0.0',
       tooltip: 'Automatically tries eligible free models across all configured providers first, then other eligible models.',
@@ -947,7 +963,7 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       capabilities: { imageInput: false, toolCalling: true },
     };
-    this.log(`Unified model list: exposing MuktoConnect-Auto plus ${all.length} model(s) across ${this.providers.length} backend(s).`);
+    this.log(`Unified model list: exposing Auto plus ${all.length} model(s) across ${this.providers.length} backend(s).`);
     return [autoModel, ...all];
   }
 
@@ -974,9 +990,9 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
         a.id.localeCompare(b.id));
       const first = candidates[0];
       if (!first) {
-        throw new Error('MuktoConnect-Auto: no eligible models found. Configure a provider URL and any required API key.');
+        throw new Error('Auto: no eligible models found. Configure a provider URL and any required API key.');
       }
-      this.log(`MuktoConnect-Auto: starting with ${first.provider.vendor}:${first.id}; free models are preferred.`);
+      this.log(`Auto: starting with ${first.provider.vendor}:${first.id}; free models are preferred.`);
       const target = await first.provider.resolveTarget(first.id);
       return first.provider.provideLanguageModelChatResponse(
         target.info, messages, options, progress, token,
@@ -1036,7 +1052,7 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
   }
 }
 
-const AUTO_MODEL_ID = 'muktoconnect-auto';
+const AUTO_MODEL_ID = 'auto';
 
 
 function isQuotaLimitError(error: unknown): error is HttpError {

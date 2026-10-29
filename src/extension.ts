@@ -9,15 +9,16 @@ export function activate(context: vscode.ExtensionContext): void {
   log('MuktoConnect activated.');
 
   // Respect an existing user or organization preference. If no chat default is
-  // configured, make MuktoConnect-Auto the default for new chat conversations.
+  // configured (or the previous MuktoConnect-Auto ID is still set), use Auto as the default for new chat conversations.
   const chatConfiguration = vscode.workspace.getConfiguration('chat');
-  if (!chatConfiguration.get<string>('defaultModel')) {
+  const configuredDefaultModel = chatConfiguration.get<string>('defaultModel');
+  if (!configuredDefaultModel || configuredDefaultModel === 'muktoconnect:muktoconnect-auto') {
     void chatConfiguration.update(
       'defaultModel',
-      'muktoconnect:muktoconnect-auto',
+      'muktoconnect:auto',
       vscode.ConfigurationTarget.Global,
     ).then(
-      () => log('Set chat.defaultModel to muktoconnect:muktoconnect-auto (no previous default was configured).'),
+      () => log('Set chat.defaultModel to muktoconnect:auto (default missing or migrated from the previous Auto ID).'),
       (error: unknown) => log(`Could not set chat.defaultModel: ${error instanceof Error ? error.message : String(error)}`),
     );
   }
