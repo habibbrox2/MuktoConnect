@@ -195,7 +195,7 @@
           "type": "number",
           "default": 1,
           "minimum": 1,
-          "description": "Attempts per model on retryable failures (network errors, 408/409/425/429/5xx) before moving to the next fallback model."
+          "description": "Maximum attempts per model for retryable failures; defaults to one attempt per model before moving to fallback."
         },
         "muktoconnect.retry.baseDelayMs": {
           "type": "number",
@@ -211,7 +211,7 @@
         "muktoconnect.retry.autoFallback": {
           "type": "boolean",
           "default": true,
-          "description": "Try other configured/eligible models when the selected model fails. Enabled by default; set false to keep the selected model authoritative."
+          "description": "Try other eligible models when the selected model fails. Enabled by default; Auto / MuktoConnect always restricts candidates to confirmed free models."
         },
         "muktoconnect.request.timeoutMs": {
           "type": "number",

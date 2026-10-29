@@ -26,6 +26,7 @@ import {
 
 const DEFAULT_MAX_INPUT_TOKENS = 128000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
+const AUTO_MODEL_ID = 'muktoconnect:auto';
 
 export interface ResolvedTarget {
   readonly vendor: VendorId;
@@ -221,6 +222,7 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     options: vscode.ProvideLanguageModelChatResponseOptions,
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
     token: vscode.CancellationToken,
+    freeOnly = false,
   ): Promise<void> {
     const retry = readRetrySettings();
     const settings = readVendorSettings(this.spec);
@@ -237,8 +239,9 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
     // Eligibility is re-evaluated per request so removed credentials cannot leave
     // stale fallback targets active.
     const eligibleRefs = new Set<string>();
-    if (retry.autoFallback) {
-      // Cross-model fallback is opt-in so the selected model remains authoritative by default.
+    const fallbackEnabled = retry.autoFallback || freeOnly;
+    if (fallbackEnabled) {
+      // Auto mode restricts every candidate to confirmed free models across providers.
       const eligibleByProvider = await Promise.all(VENDORS.map(async (spec) => {
         const provider = this.registry.get(spec.id);
         if (!provider) return { vendor: spec.id, ids: [] as string[] };
@@ -251,15 +254,17 @@ export class OpenAICompatProvider implements vscode.LanguageModelChatProvider {
       }));
       for (const entry of eligibleByProvider) {
         for (const id of entry.ids) {
+          const provider = this.registry.get(entry.vendor);
+          if (freeOnly && !provider?.isFreeModelId(id)) continue;
           eligibleRefs.add(entry.vendor === this.vendor ? id : `${entry.vendor}:${id}`);
         }
       }
     }
-    const configuredFallbacks = retry.autoFallback
-      ? filterEligibleFallbackRefs(settings.fallbackModels, eligibleRefs)
+    const configuredFallbacks = fallbackEnabled
+      ? filterEligibleFallbackRefs(settings.fallbackModels, eligibleRefs).filter((ref) => !freeOnly || this.isFreeRef(ref))
       : [];
-    const dynamicFallbacks = retry.autoFallback
-      ? [...eligibleRefs].filter((ref) => ref !== model.id)
+    const dynamicFallbacks = fallbackEnabled
+      ? [...eligibleRefs].filter((ref) => ref !== model.id && (!freeOnly || this.isFreeRef(ref)))
       : [];
     const orderedFallbacks = dedupe([...configuredFallbacks, ...dynamicFallbacks]).sort(
       (a, b) => Number(this.isFreeRef(b)) - Number(this.isFreeRef(a)),
@@ -929,25 +934,32 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
       try {
         const models = await provider.provideLanguageModelChatInformation(options, token);
         for (const model of models) {
-          const isMuktoAuto = provider.vendor === 'muktodwar' && model.id === 'mukto-auto/free';
           all.push({
             ...model,
             id: `${provider.vendor}:${model.id}`,
-            name: isMuktoAuto ? 'Auto / MuktoConnect' : `${provider.vendor} / ${model.name}`,
+            name: `${provider.vendor} / ${model.name}`,
             family: provider.vendor,
-            tooltip: isMuktoAuto
-              ? 'Auto / MuktoConnect • Automatically routed by the configured MuktoDwar gateway'
-              : `${provider.vendor} • ${model.name}${model.tooltip ? ` • ${model.tooltip}` : ''}`,
-            detail: isMuktoAuto
-              ? 'Automatic routing via MuktoDwar'
-              : `${provider.vendor} • ${model.detail ?? model.name}`,
+            tooltip: `${provider.vendor} • ${model.name}${model.tooltip ? ` • ${model.tooltip}` : ''}`,
+            detail: `${provider.vendor} • ${model.detail ?? model.name}`,
           });
         }
       } catch (error) {
         this.log(`Unified model list: ${provider.vendor} discovery failed — ${describe(error)}`);
       }
     }
-    this.log(`Unified model list: exposing ${all.length} explicitly selectable model(s) across ${this.providers.length} backend(s).`);
+    all.sort((a, b) => a.name.localeCompare(b.name));
+    all.unshift({
+      id: AUTO_MODEL_ID,
+      name: 'Auto / MuktoConnect',
+      family: 'MuktoConnect',
+      version: '1.0.0',
+      tooltip: 'Automatically select and switch among eligible free models across configured providers.',
+      detail: 'Free models only • automatic provider switching and fallback',
+      maxInputTokens: DEFAULT_MAX_INPUT_TOKENS,
+      maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+      capabilities: { imageInput: false, toolCalling: true },
+    });
+    this.log(`Unified model list: exposing Auto / MuktoConnect first, then ${all.length - 1} concrete model(s) across ${this.providers.length} backend(s).`);
     return all;
   }
 
@@ -958,6 +970,25 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
     token: vscode.CancellationToken,
   ): Promise<void> {
+    if (model.id === AUTO_MODEL_ID) {
+      const discovered = await Promise.all(this.providers.map(async (provider) => {
+        try {
+          const ids = await provider.getEligibleFallbackModelIds();
+          return ids.filter((id) => provider.isFreeModelId(id)).map((modelId) => ({ provider, modelId }));
+        } catch (error) {
+          this.log(`Auto / MuktoConnect: free-model discovery failed for ${provider.vendor} — ${describe(error)}`);
+          return [];
+        }
+      }));
+      const candidates = discovered.flat();
+      if (candidates.length === 0) {
+        throw new Error('Auto / MuktoConnect could not find any eligible free models. Configure a provider and ensure its model catalogue identifies free models.');
+      }
+      const first = candidates[0];
+      const target = await first.provider.resolveTarget(first.modelId);
+      this.log(`Auto / MuktoConnect selected free model ${target.vendor}:${target.info.id}.`);
+      return first.provider.provideLanguageModelChatResponse(target.info, messages, options, progress, token, true);
+    }
     const separator = model.id.indexOf(':');
     if (separator <= 0) {
       throw new Error(`Invalid MuktoConnect model reference: ${model.id}`);
@@ -982,6 +1013,11 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
     text: string | vscode.LanguageModelChatRequestMessage,
     token: vscode.CancellationToken,
   ): Promise<number> {
+    if (model.id === AUTO_MODEL_ID) {
+      if (typeof text === 'string') return Promise.resolve(Math.ceil(text.length / 4));
+      const chars = text.content.reduce<number>((total, part) => total + (part instanceof vscode.LanguageModelTextPart ? part.value.length : 0), 0);
+      return Promise.resolve(Math.ceil(chars / 4));
+    }
     const separator = model.id.indexOf(':');
     const vendor = separator > 0 ? model.id.slice(0, separator) : '';
     const provider = this.providers.find((candidate) => candidate.vendor === vendor);

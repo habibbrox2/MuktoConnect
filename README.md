@@ -63,7 +63,7 @@ Use `MuktoConnect: Manage <Provider> Provider` commands to configure:
 - Custom model IDs
 - Fallback model chains (e.g., `muktodwar:mukto-auto/free` or `kilo:openai/gpt-5.4`)
 
-**Unified model picker:** MuktoConnect registers one provider in VS Code. Its model list aggregates models from every configured backend and uses vendor-qualified model IDs so the same model ID from two providers does not collide. Use `MuktoConnect: Manage All Providers` to choose a backend to configure.
+**Unified model picker:** `Auto / MuktoConnect` is pinned at the top. It selects an eligible free model and, on a safe pre-output failure, switches/falls back only to eligible free models across configured providers. Paid models are never used by Auto. Concrete models follow alphabetically and use vendor-qualified IDs so duplicate IDs do not collide. Use `MuktoConnect: Manage All Providers` to configure backends.
 
 Provider discovery is intentionally silent. If a required API key or base URL is missing, MuktoConnect exposes no models for that provider and does not show repeated prompts while Copilot Chat refreshes its model list. Configure providers explicitly with the management commands, then refresh the model list.
 
@@ -79,13 +79,13 @@ Verify in a VS Code Extension Development Host with a configured endpoint:
 
 ## Request retries and fallback
 
-By default, each request uses the selected model only, attempts the request once, and returns failures to Copilot Chat. Automatic retry, interrupted-text continuation, cross-provider fallback, and promotion of a fallback model are opt-in because they can change which model answers or add extra requests.
+For concrete model selections, each model is attempted at most once by default (`retry.maxAttempts: 1`); if a request fails before output/tool execution begins, fallback and provider switching are enabled by default. Fallback candidates are tried once each, free models are preferred, and quota exhaustion restricts subsequent candidates to confirmed free models. `Auto / MuktoConnect` always restricts initial selection and fallback to eligible free models. MuktoConnect never restarts a request after visible output or after tool-call generation begins, preventing duplicate output/tool execution. Interrupted-text continuation remains disabled by default.
 
 Configure under `muktoconnect.*`:
 - `retry.maxAttempts` — defaults to `1` (no repeated provider request).
 - `retry.autoContinue` — defaults to `false`.
-- `retry.autoFallback` — defaults to `false`; enable only if you accept that a different model may answer.
-- `retry.autoSwitch` — defaults to `false`.
+- `retry.autoFallback` — defaults to `true`; set false to disable fallback for concrete model selections. `Auto / MuktoConnect` still uses free-only routing.
+- `retry.autoSwitch` — defaults to `true`; successful fallback models can be preferred on later requests.
 - `retry.baseDelayMs` and `request.timeoutMs` — retry delay and request timeout.
 
 The provider can prevent its own duplicate retries/fallbacks, but it cannot override Copilot Agent's host-level decision to retry a failed tool call. The underlying tool's failure message and the model's tool-calling reliability still matter.
