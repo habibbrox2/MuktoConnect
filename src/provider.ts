@@ -934,18 +934,13 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
       try {
         const models = await provider.provideLanguageModelChatInformation(options, token);
         for (const model of models) {
-          const isMuktoAuto = provider.vendor === 'muktodwar' && model.id === 'mukto-auto/free';
           all.push({
             ...model,
             id: `${provider.vendor}:${model.id}`,
-            name: isMuktoAuto ? 'Auto / MuktoConnect' : `${provider.vendor} / ${model.name}`,
+            name: `${provider.vendor} / ${model.name}`,
             family: provider.vendor,
-            tooltip: isMuktoAuto
-              ? 'Auto / MuktoConnect • Automatically routed by the configured MuktoDwar gateway'
-              : `${provider.vendor} • ${model.name}${model.tooltip ? ` • ${model.tooltip}` : ''}`,
-            detail: isMuktoAuto
-              ? 'Automatic routing via MuktoDwar'
-              : `${provider.vendor} • ${model.detail ?? model.name}`,
+            tooltip: `${provider.vendor} • ${model.name}${model.tooltip ? ` • ${model.tooltip}` : ''}`,
+            detail: `${provider.vendor} • ${model.detail ?? model.name}`,
           });
         }
       } catch (error) {
