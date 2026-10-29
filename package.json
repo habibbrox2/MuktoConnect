@@ -205,13 +205,13 @@
         },
         "muktoconnect.retry.autoSwitch": {
           "type": "boolean",
-          "default": false,
-          "description": "Opt in to preferring a previously successful fallback model for later requests. Disabled by default to preserve the selected model."
+          "default": true,
+          "description": "Prefer a previously successful fallback model for later requests. Enabled by default; set false to keep the selected model fixed."
         },
         "muktoconnect.retry.autoFallback": {
           "type": "boolean",
-          "default": false,
-          "description": "Opt in to trying other configured/eligible models when the selected model fails. Disabled by default so the selected model stays authoritative."
+          "default": true,
+          "description": "Try other configured/eligible models when the selected model fails. Enabled by default; set false to keep the selected model authoritative."
         },
         "muktoconnect.request.timeoutMs": {
           "type": "number",
