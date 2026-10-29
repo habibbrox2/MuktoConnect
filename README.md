@@ -45,7 +45,7 @@ npm install
 npm run compile
 ```
 
-Run in Extension Development Host: open this folder in VS Code, press `F5`. In the new window, go to Chat → Manage Models and enable **MuktoConnect**. All models from configured backends (MuktoDwar, Kilo, OpenCode, and Custom) appear under this single provider; model names are prefixed with the backend ID to distinguish duplicate model IDs. **Auto** (`muktoconnect:auto`) appears first and starts with an eligible free model across configured backends, then uses the existing cross-provider fallback chain. Existing `chat.defaultModel` values set to `muktoconnect:muktoconnect-auto` are migrated to `muktoconnect:auto`; other user-selected defaults are preserved. If no free model is eligible, it starts with the first eligible model available.
+Run in Extension Development Host: open this folder in VS Code, press `F5`. In the new window, go to Chat → Manage Models and enable **MuktoConnect**. All models from configured backends (MuktoDwar, Kilo, OpenCode, and Custom) appear under this single provider; model names are prefixed with the backend ID to distinguish duplicate model IDs. **Auto** (`muktoconnect:auto`) appears first and starts with an eligible free model across configured backends, then uses the existing cross-provider fallback chain. Provider eligibility checks run concurrently to reduce startup latency, and each response includes a `_Model: provider / model-id_` label for the actual backend that produced it. Existing `chat.defaultModel` values set to `muktoconnect:muktoconnect-auto` are migrated to `muktoconnect:auto`; other user-selected defaults are preserved. If no free model is eligible, it starts with the first eligible model available.
 
 Package and install:
 ```bash
@@ -69,7 +69,7 @@ Provider discovery is intentionally silent. If a required API key or base URL is
 
 ## Copilot Chat Agent compatibility
 
-MuktoConnect contributes models through VS Code's Language Model Chat Provider API. Tool calling is enabled for exposed models, and the extension translates VS Code messages/tool results to OpenAI Chat Completions format. Agent behavior still depends on the upstream model and endpoint correctly supporting tool calls and the required OpenAI-compatible request format; provider registration alone cannot guarantee parity with every built-in Copilot model.
+MuktoConnect contributes models through VS Code's Language Model Chat Provider API. Tool calling is enabled for exposed models, and the extension translates VS Code messages/tool results to OpenAI Chat Completions format. Agent behavior still depends on the upstream model and endpoint correctly supporting tool calls and the required OpenAI-compatible request format; provider registration alone cannot guarantee parity with every built-in Copilot model. MuktoConnect forwards the tools VS Code supplies (including a sub-agent tool when the host exposes one), but it cannot create or force-enable VS Code sub-agents itself; availability and orchestration remain controlled by VS Code Agent Mode and its configuration.
 
 Verify in a VS Code Extension Development Host with a configured endpoint:
 - Agent mode can call a tool and consume its result in a subsequent model turn.
