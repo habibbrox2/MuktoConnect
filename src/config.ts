@@ -106,9 +106,9 @@ export function readRetrySettings(): RetrySettings {
   return {
     maxAttempts: Math.max(1, Math.floor(positiveOr(cfg.get<number>('retry.maxAttempts'), 1))),
     baseDelayMs: Math.max(0, positiveOr(cfg.get<number>('retry.baseDelayMs'), 500)),
-    autoSwitch: cfg.get<boolean>('retry.autoSwitch') === true,
+    autoSwitch: cfg.get<boolean>('retry.autoSwitch') !== false,
     autoContinue: cfg.get<boolean>('retry.autoContinue') === true,
-    autoFallback: cfg.get<boolean>('retry.autoFallback') === true,
+    autoFallback: cfg.get<boolean>('retry.autoFallback') !== false,
     timeoutMs: positiveOr(cfg.get<number>('request.timeoutMs'), 120000),
   };
 }
