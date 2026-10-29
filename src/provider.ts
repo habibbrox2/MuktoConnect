@@ -1014,9 +1014,9 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
     token: vscode.CancellationToken,
   ): Promise<number> {
     if (model.id === AUTO_MODEL_ID) {
-      if (typeof text === 'string') return Math.ceil(text.length / 4);
-      const chars = text.content.reduce((total, part) => total + (part instanceof vscode.LanguageModelTextPart ? part.value.length : 0), 0);
-      return Math.ceil(chars / 4);
+      if (typeof text === 'string') return Promise.resolve(Math.ceil(text.length / 4));
+      const chars = text.content.reduce<number>((total, part) => total + (part instanceof vscode.LanguageModelTextPart ? part.value.length : 0), 0);
+      return Promise.resolve(Math.ceil(chars / 4));
     }
     const separator = model.id.indexOf(':');
     const vendor = separator > 0 ? model.id.slice(0, separator) : '';
