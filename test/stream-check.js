@@ -296,7 +296,8 @@ function makeProvider(baseUrl, extra) {
   CONFIG.set('retry.maxAttempts', 1);
   CONFIG.set('retry.baseDelayMs', 10);
   CONFIG.set('retry.autoSwitch', false);
-  CONFIG.set('retry.autoContinue', overrides.autoContinue !== false);
+  CONFIG.set('retry.autoContinue', overrides.autoContinue === true);
+  CONFIG.set('retry.autoFallback', overrides.autoFallback === true);
   CONFIG.set('request.timeoutMs', overrides.timeoutMs || 5000);
   const registry = new ProviderRegistry();
   const provider = new OpenAICompatProvider('custom', spec, secretStorage, registry, (m) => logs.push(m));
@@ -476,10 +477,9 @@ async function check(route, label, fn) {
   });
 
   await check('partial-truncated', 'opt-in text-only continuation does not repeat partial text', async () => {
-    CONFIG.set('retry.autoContinue', true);
     scenario.requests = 0;
     requestBodies.length = 0;
-    const parts = await run(base);
+    const parts = await run(base, { autoContinue: true });
     const text = parts.map((part) => (part instanceof TextPart ? part.value : '')).join('');
     assert.strictEqual(text, 'Partial answer continued safely.');
     assert.strictEqual(scenario.requests, 2, 'expected initial request plus one continuation');
@@ -504,10 +504,9 @@ async function check(route, label, fn) {
   });
 
   await check('quota-free-fallback', 'opt-in fallback skips quota-limited models and prefers free fallback models', async () => {
-    CONFIG.set('retry.autoFallback', true);
     scenario.requests = 0;
     requestBodies.length = 0;
-    const parts = await run(base, {}, 'paid-model');
+    const parts = await run(base, { autoFallback: true }, 'paid-model');
     const text = parts.map((part) => (part instanceof TextPart ? part.value : '')).join('');
     assert.strictEqual(text, 'Free fallback worked.');
     assert.strictEqual(scenario.requests, 2, 'quota-limited model should be called once, then free fallback once');
