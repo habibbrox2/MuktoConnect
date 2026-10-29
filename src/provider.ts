@@ -938,7 +938,7 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
       a.name.localeCompare(b.name));
     const autoModel: vscode.LanguageModelChatInformation = {
       id: AUTO_MODEL_ID,
-      name: 'MuktoConnect-Auto',
+      name: 'Auto',
       family: 'muktoconnect',
       version: '1.0.0',
       tooltip: 'Automatically tries eligible free models across all configured providers first, then other eligible models.',
@@ -947,7 +947,7 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       capabilities: { imageInput: false, toolCalling: true },
     };
-    this.log(`Unified model list: exposing MuktoConnect-Auto plus ${all.length} model(s) across ${this.providers.length} backend(s).`);
+    this.log(`Unified model list: exposing Auto plus ${all.length} model(s) across ${this.providers.length} backend(s).`);
     return [autoModel, ...all];
   }
 
@@ -974,9 +974,9 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
         a.id.localeCompare(b.id));
       const first = candidates[0];
       if (!first) {
-        throw new Error('MuktoConnect-Auto: no eligible models found. Configure a provider URL and any required API key.');
+        throw new Error('Auto: no eligible models found. Configure a provider URL and any required API key.');
       }
-      this.log(`MuktoConnect-Auto: starting with ${first.provider.vendor}:${first.id}; free models are preferred.`);
+      this.log(`Auto: starting with ${first.provider.vendor}:${first.id}; free models are preferred.`);
       const target = await first.provider.resolveTarget(first.id);
       return first.provider.provideLanguageModelChatResponse(
         target.info, messages, options, progress, token,
@@ -1036,7 +1036,7 @@ export class UnifiedLanguageModelProvider implements vscode.LanguageModelChatPro
   }
 }
 
-const AUTO_MODEL_ID = 'muktoconnect-auto';
+const AUTO_MODEL_ID = 'auto';
 
 
 function isQuotaLimitError(error: unknown): error is HttpError {
