@@ -111,7 +111,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Optional ordered fallback chain when the selected MuktoDwar model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
+          "description": "Optional ordered fallback chain used only when muktoconnect.retry.autoFallback is enabled."
         },
         "muktoconnect.kilo.baseUrl": {
           "type": "string",
@@ -137,7 +137,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Optional ordered fallback chain when the selected M-Kilo model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
+          "description": "Optional ordered fallback chain used only when muktoconnect.retry.autoFallback is enabled."
         },
         "muktoconnect.opencode.baseUrl": {
           "type": "string",
@@ -163,7 +163,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Optional ordered fallback chain when the selected M-OpenCode model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
+          "description": "Optional ordered fallback chain used only when muktoconnect.retry.autoFallback is enabled."
         },
         "muktoconnect.custom.baseUrl": {
           "type": "string",
@@ -189,11 +189,11 @@
             "type": "string"
           },
           "default": [],
-          "description": "Optional ordered fallback chain when the selected custom model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
+          "description": "Optional ordered fallback chain used only when muktoconnect.retry.autoFallback is enabled."
         },
         "muktoconnect.retry.maxAttempts": {
           "type": "number",
-          "default":  1,
+          "default": 1,
           "minimum": 1,
           "description": "Attempts per model on retryable failures (network errors, 408/409/425/429/5xx) before moving to the next fallback model."
         },

@@ -45,7 +45,7 @@ npm install
 npm run compile
 ```
 
-Run in Extension Development Host: open this folder in VS Code, press `F5`. In the new window, go to Chat → Manage Models and enable **MuktoConnect**. All models from configured backends (MuktoDwar, Kilo, OpenCode, and Custom) appear under this single provider; model names include the backend ID to distinguish duplicate model IDs. **Auto** (`muktoconnect:auto`) remains an explicit choice and selects an eligible model when invoked. MuktoConnect does not write to `chat.defaultModel`; choose the desired model in Copilot Chat yourself. Responses contain only model output—no injected `_Model: ..._` prefix. VS Code's stable Language Model Chat Provider API exposes model names in the picker but does not provide a separate response-part field for overriding the native per-response model attribution.
+Run in Extension Development Host: open this folder in VS Code, press `F5`. In the new window, go to Chat → Manage Models and enable **MuktoConnect**. All models from configured backends (MuktoDwar, Kilo, OpenCode, and Custom) appear under this single provider; model names include the backend ID to distinguish duplicate model IDs. Only concrete model IDs are exposed, so the selected model and the request target stay aligned. MuktoConnect does not write to `chat.defaultModel`; choose the desired model in Copilot Chat yourself. Responses contain only model output—no injected `_Model: ..._` prefix. VS Code's stable Language Model Chat Provider API exposes model names in the picker but does not provide a separate response-part field for overriding the native per-response model attribution.
 
 Package and install:
 ```bash

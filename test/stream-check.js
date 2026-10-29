@@ -489,6 +489,18 @@ async function check(route, label, fn) {
     assert.match(body.messages[2].content, /Continue the previous answer/);
   });
 
+  await check('quota-free-fallback', 'fallback is disabled by default and selected-model errors surface directly', async () => {
+    scenario.requests = 0;
+    requestBodies.length = 0;
+    try {
+      await run(base, {}, 'paid-model');
+      assert.fail('expected selected model quota error');
+    } catch (error) {
+      assert.ok(/all eligible candidate models failed/.test(error.message), `message: ${error.message}`);
+    }
+    assert.strictEqual(scenario.requests, 1, 'default must not query or invoke a fallback model');
+  });
+
   await check('quota-free-fallback', 'opt-in fallback skips quota-limited models and prefers free fallback models', async () => {
     CONFIG.set('retry.autoFallback', true);
     scenario.requests = 0;
