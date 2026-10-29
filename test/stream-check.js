@@ -297,7 +297,7 @@ function makeProvider(baseUrl, extra) {
   CONFIG.set('retry.baseDelayMs', 10);
   CONFIG.set('retry.autoSwitch', false);
   CONFIG.set('retry.autoContinue', overrides.autoContinue === true);
-  CONFIG.set('retry.autoFallback', overrides.autoFallback === true);
+  CONFIG.set('retry.autoFallback', overrides.autoFallback !== false);
   CONFIG.set('request.timeoutMs', overrides.timeoutMs || 5000);
   const registry = new ProviderRegistry();
   const provider = new OpenAICompatProvider('custom', spec, secretStorage, registry, (m) => logs.push(m));
@@ -491,11 +491,11 @@ async function check(route, label, fn) {
     CONFIG.delete('retry.autoContinue');
   });
 
-  await check('quota-free-fallback', 'fallback is disabled by default and selected-model errors surface directly', async () => {
+  await check('quota-free-fallback', 'explicitly disabled fallback surfaces selected-model errors directly', async () => {
     scenario.requests = 0;
     requestBodies.length = 0;
     try {
-      await run(base, {}, 'paid-model');
+      await run(base, { autoFallback: false }, 'paid-model');
       assert.fail('expected selected model quota error');
     } catch (error) {
       assert.ok(/all eligible candidate models failed/.test(error.message), `message: ${error.message}`);
@@ -503,10 +503,10 @@ async function check(route, label, fn) {
     assert.strictEqual(scenario.requests, 1, 'default must not query or invoke a fallback model');
   });
 
-  await check('quota-free-fallback', 'opt-in fallback skips quota-limited models and prefers free fallback models', async () => {
+  await check('quota-free-fallback', 'default fallback skips quota-limited models and prefers free fallback models', async () => {
     scenario.requests = 0;
     requestBodies.length = 0;
-    const parts = await run(base, { autoFallback: true }, 'paid-model');
+    const parts = await run(base, {}, 'paid-model');
     const text = parts.map((part) => (part instanceof TextPart ? part.value : '')).join('');
     assert.strictEqual(text, 'Free fallback worked.');
     assert.strictEqual(scenario.requests, 2, 'quota-limited model should be called once, then free fallback once');
