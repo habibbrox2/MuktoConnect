@@ -1,7 +1,7 @@
 {
   "name": "muktoconnect",
   "displayName": "MuktoConnect — Custom AI Providers for Copilot Chat",
-  "description": "Connect custom AI providers and models to GitHub Copilot Chat: MuktoDwar local gateway, Kilo Gateway, OpenCode Console / Zen and any OpenAI-compatible endpoint — with automatic retry and model fallback.",
+  "description": "Add custom AI providers and models to GitHub Copilot Chat through VS Code's Language Model Chat Provider API, without changing Copilot Chat preferences or injecting response text.",
   "version": "0.1.6",
   "publisher": "habibbrox2",
   "license": "MIT",
@@ -193,7 +193,7 @@
         },
         "muktoconnect.retry.maxAttempts": {
           "type": "number",
-          "default": 3,
+          "default":  1,
           "minimum": 1,
           "description": "Attempts per model on retryable failures (network errors, 408/409/425/429/5xx) before moving to the next fallback model."
         },
@@ -205,8 +205,13 @@
         },
         "muktoconnect.retry.autoSwitch": {
           "type": "boolean",
-          "default": true,
-          "description": "After a successful automatic switch, keep using the promoted model for later requests until it fails."
+          "default": false,
+          "description": "Opt in to preferring a previously successful fallback model for later requests. Disabled by default to preserve the selected model."
+        },
+        "muktoconnect.retry.autoFallback": {
+          "type": "boolean",
+          "default": false,
+          "description": "Opt in to trying other configured/eligible models when the selected model fails. Disabled by default so the selected model stays authoritative."
         },
         "muktoconnect.request.timeoutMs": {
           "type": "number",
@@ -216,8 +221,8 @@
         },
         "muktoconnect.retry.autoContinue": {
           "type": "boolean",
-          "default": true,
-          "description": "After a text-only streamed response is interrupted, make one continuation request using the partial answer as context. Tool-call partials are never auto-continued."
+          "default": false,
+          "description": "Opt in to one continuation request after an interrupted text-only response. Disabled by default so MuktoConnect does not add extra conversation turns."
         },
         "muktoconnect.diagnostics.greetingResponse": {
           "type": "boolean",
