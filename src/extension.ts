@@ -8,20 +8,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const log = (message: string): void => output.appendLine(`[${new Date().toISOString()}] ${message}`);
   log('MuktoConnect activated.');
 
-  // Respect an existing user or organization preference. If no chat default is
-  // configured (or the previous MuktoConnect-Auto ID is still set), use Auto as the default for new chat conversations.
-  const chatConfiguration = vscode.workspace.getConfiguration('chat');
-  const configuredDefaultModel = chatConfiguration.get<string>('defaultModel');
-  if (!configuredDefaultModel || configuredDefaultModel === 'muktoconnect:muktoconnect-auto') {
-    void chatConfiguration.update(
-      'defaultModel',
-      'muktoconnect:auto',
-      vscode.ConfigurationTarget.Global,
-    ).then(
-      () => log('Set chat.defaultModel to muktoconnect:auto (default missing or migrated from the previous Auto ID).'),
-      (error: unknown) => log(`Could not set chat.defaultModel: ${error instanceof Error ? error.message : String(error)}`),
-    );
-  }
+  // Provider activation must not change chat.defaultModel or any Copilot Chat preference.
+  // Users choose MuktoConnect models explicitly from the native model picker.
 
   const registry = new ProviderRegistry();
 

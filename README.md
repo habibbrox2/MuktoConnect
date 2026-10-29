@@ -4,7 +4,7 @@
 
 **Custom AI providers and models for GitHub Copilot Chat.**
 
-MuktoConnect (মুক্তসংযোগ) connects custom AI providers to GitHub Copilot Chat as first-class models — including Agent mode — using the Language Model Chat Provider API. It streams responses, supports tool calling, and automatically retries with exponential backoff and fails over to alternative models when providers fail.
+MuktoConnect (মুক্তসংযোগ) adds custom AI models to GitHub Copilot Chat through VS Code's Language Model Chat Provider API. It streams responses and forwards tool calls/results using the endpoint's OpenAI-compatible format. By default, it does not change Copilot Chat's selected default, inject model labels into response text, automatically continue interrupted answers, or switch to another model after a failure.
 
 [![GitHub](https://img.shields.io/badge/GitHub-habibbrox2/MuktoConnect-blue?logo=github)](https://github.com/habibbrox2/MuktoConnect) [![Release](https://img.shields.io/github/v/release/habibbrox2/MuktoConnect?logo=github)](https://github.com/habibbrox2/MuktoConnect/releases/latest)
 
@@ -45,7 +45,7 @@ npm install
 npm run compile
 ```
 
-Run in Extension Development Host: open this folder in VS Code, press `F5`. In the new window, go to Chat → Manage Models and enable **MuktoConnect**. All models from configured backends (MuktoDwar, Kilo, OpenCode, and Custom) appear under this single provider; model names are prefixed with the backend ID to distinguish duplicate model IDs. **Auto** (`muktoconnect:auto`) appears first and starts with an eligible free model across configured backends, then uses the existing cross-provider fallback chain. Provider eligibility checks run concurrently to reduce startup latency, and each response includes a `_Model: provider / model-id_` label for the actual backend that produced it. Existing `chat.defaultModel` values set to `muktoconnect:muktoconnect-auto` are migrated to `muktoconnect:auto`; other user-selected defaults are preserved. If no free model is eligible, it starts with the first eligible model available.
+Run in Extension Development Host: open this folder in VS Code, press `F5`. In the new window, go to Chat → Manage Models and enable **MuktoConnect**. All models from configured backends (MuktoDwar, Kilo, OpenCode, and Custom) appear under this single provider; model names include the backend ID to distinguish duplicate model IDs. Only concrete model IDs are exposed, so the selected model and the request target stay aligned. MuktoConnect does not write to `chat.defaultModel`; choose the desired model in Copilot Chat yourself. Responses contain only model output—no injected `_Model: ..._` prefix. VS Code's stable Language Model Chat Provider API exposes model names in the picker but does not provide a separate response-part field for overriding the native per-response model attribution.
 
 Package and install:
 ```bash
@@ -77,16 +77,18 @@ Verify in a VS Code Extension Development Host with a configured endpoint:
 - Cancellation, rate limits, interrupted streams, and fallback do not duplicate already-visible output or repeat tool execution.
 - Models that support image input are not assumed to support it by MuktoConnect; image input remains disabled until multimodal request mapping is implemented and tested.
 
-## Retry & Automatic Fallback
+## Request retries and fallback
 
-- **Smart retries:** Retries on network errors, timeouts, 408/409/425/429/5xx with exponential backoff + jitter
-- **Fast failover:** Skips retries on 4xx client errors (except specific retryable ones)
-- **Free-first auto model:** Select `Auto` (`muktoconnect:auto`) to start with an eligible free model across all configured backends.
-- **Cross-provider fallback:** Fail over to any configured provider/model
-- **Auto-promotion:** Successful fallback models become preferred for future requests
-- **Streaming safe:** No restart if output already streamed
+By default, each request uses the selected model only, attempts the request once, and returns failures to Copilot Chat. Automatic retry, interrupted-text continuation, cross-provider fallback, and promotion of a fallback model are opt-in because they can change which model answers or add extra requests.
 
-Configure via settings under `muktoconnect.*`: `retry.maxAttempts`, `retry.baseDelayMs`, `retry.autoSwitch`, `request.timeoutMs`.
+Configure under `muktoconnect.*`:
+- `retry.maxAttempts` — defaults to `1` (no repeated provider request).
+- `retry.autoContinue` — defaults to `false`.
+- `retry.autoFallback` — defaults to `false`; enable only if you accept that a different model may answer.
+- `retry.autoSwitch` — defaults to `false`.
+- `retry.baseDelayMs` and `request.timeoutMs` — retry delay and request timeout.
+
+The provider can prevent its own duplicate retries/fallbacks, but it cannot override Copilot Agent's host-level decision to retry a failed tool call. The underlying tool's failure message and the model's tool-calling reliability still matter.
 
 ## Development
 
@@ -107,9 +109,8 @@ Do not publish a tag until the workflow changes are merged into `main`, the Mark
 
 ## Testing
 
-- `npm run test:unit` — 28/28 tests passed in the local verification run.
-- `npm run test:stream` — 10/10 scenarios passed in the local verification run.
-- VSIX packaging and isolated VS Code installation smoke test passed; real GitHub Copilot Agent Edit/Shell behavior still needs an end-to-end VS Code test.
+- Unit and streaming tests run in GitHub Actions.
+- A successful provider test run does not prove native Copilot Agent end-to-end behavior. Verify Read/Edit/Shell, failed tool recovery, cancellation, and actual model attribution in a VS Code Extension Development Host before release.
 
 ## License
 

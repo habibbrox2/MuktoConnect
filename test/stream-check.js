@@ -296,7 +296,8 @@ function makeProvider(baseUrl, extra) {
   CONFIG.set('retry.maxAttempts', 1);
   CONFIG.set('retry.baseDelayMs', 10);
   CONFIG.set('retry.autoSwitch', false);
-  CONFIG.set('retry.autoContinue', overrides.autoContinue !== false);
+  CONFIG.set('retry.autoContinue', overrides.autoContinue === true);
+  CONFIG.set('retry.autoFallback', overrides.autoFallback === true);
   CONFIG.set('request.timeoutMs', overrides.timeoutMs || 5000);
   const registry = new ProviderRegistry();
   const provider = new OpenAICompatProvider('custom', spec, secretStorage, registry, (m) => logs.push(m));
@@ -401,7 +402,7 @@ async function check(route, label, fn) {
   await check('sse-ok', 'streamed SSE response is passed through', async () => {
     const parts = await run(base);
     const text = parts.map((p) => (p instanceof TextPart ? p.value : '')).join('');
-    assert.strictEqual(text, '_Model: custom / test-model_\n\nHello world');
+    assert.strictEqual(text, 'Hello world');
   });
 
   await check('sse-ok', 'requests silently cap model tools at 128 without a warning', async () => {
@@ -422,7 +423,7 @@ async function check(route, label, fn) {
   await check('json-completion', 'gateway that ignores stream:true still answers', async () => {
     const parts = await run(base);
     const text = parts.map((p) => (p instanceof TextPart ? p.value : '')).join('');
-    assert.strictEqual(text, '_Model: custom / test-model_\n\nBuffered answer');
+    assert.strictEqual(text, 'Buffered answer');
   });
 
   await check('json-error', 'JSON error body with 200 fails instead of resolving empty', async () => {
@@ -475,30 +476,44 @@ async function check(route, label, fn) {
     assert.fail(`resolved with ${parts.length} parts instead of throwing`);
   });
 
-  await check('partial-truncated', 'text-only partial response automatically continues without repeating the partial text', async () => {
+  await check('partial-truncated', 'opt-in text-only continuation does not repeat partial text', async () => {
     scenario.requests = 0;
     requestBodies.length = 0;
-    const parts = await run(base);
+    const parts = await run(base, { autoContinue: true });
     const text = parts.map((part) => (part instanceof TextPart ? part.value : '')).join('');
-    assert.strictEqual(text, '_Model: custom / test-model_\n\nPartial answer continued safely.');
+    assert.strictEqual(text, 'Partial answer continued safely.');
     assert.strictEqual(scenario.requests, 2, 'expected initial request plus one continuation');
     const body = JSON.parse(requestBodies[1]);
     assert.strictEqual(body.messages[1].role, 'assistant');
     assert.strictEqual(body.messages[1].content, 'Partial answer ');
     assert.strictEqual(body.messages[2].role, 'user');
     assert.match(body.messages[2].content, /Continue the previous answer/);
+    CONFIG.delete('retry.autoContinue');
   });
 
-  await check('quota-free-fallback', 'free quota errors skip same-model retries and prefer free fallback models', async () => {
+  await check('quota-free-fallback', 'fallback is disabled by default and selected-model errors surface directly', async () => {
     scenario.requests = 0;
     requestBodies.length = 0;
-    const parts = await run(base, {}, 'paid-model');
+    try {
+      await run(base, {}, 'paid-model');
+      assert.fail('expected selected model quota error');
+    } catch (error) {
+      assert.ok(/all eligible candidate models failed/.test(error.message), `message: ${error.message}`);
+    }
+    assert.strictEqual(scenario.requests, 1, 'default must not query or invoke a fallback model');
+  });
+
+  await check('quota-free-fallback', 'opt-in fallback skips quota-limited models and prefers free fallback models', async () => {
+    scenario.requests = 0;
+    requestBodies.length = 0;
+    const parts = await run(base, { autoFallback: true }, 'paid-model');
     const text = parts.map((part) => (part instanceof TextPart ? part.value : '')).join('');
-    assert.strictEqual(text, '_Model: custom / free-model_\n\nFree fallback worked.');
+    assert.strictEqual(text, 'Free fallback worked.');
     assert.strictEqual(scenario.requests, 2, 'quota-limited model should be called once, then free fallback once');
     const bodies = requestBodies.map((body) => JSON.parse(body));
     assert.deepStrictEqual(bodies.map((body) => body.model), ['paid-model', 'free-model']);
     assert.ok(logs.some((line) => /quota limit detected.*paid-model.*cooling down for 2s/.test(line)), 'Retry-After cooldown should be recorded');
+    CONFIG.delete('retry.autoFallback');
   });
 
   await check('toolcall-partial-truncated', 'partial tool-call streams never trigger text continuation', async () => {

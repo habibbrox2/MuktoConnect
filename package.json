@@ -1,7 +1,7 @@
 {
   "name": "muktoconnect",
   "displayName": "MuktoConnect — Custom AI Providers for Copilot Chat",
-  "description": "Connect custom AI providers and models to GitHub Copilot Chat: MuktoDwar local gateway, Kilo Gateway, OpenCode Console / Zen and any OpenAI-compatible endpoint — with automatic retry and model fallback.",
+  "description": "Add custom AI providers and models to GitHub Copilot Chat through VS Code's Language Model Chat Provider API, without changing Copilot Chat preferences or injecting response text.",
   "version": "0.1.6",
   "publisher": "habibbrox2",
   "license": "MIT",
@@ -111,7 +111,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Optional ordered fallback chain when the selected MuktoDwar model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
+          "description": "Optional ordered fallback chain used only when muktoconnect.retry.autoFallback is enabled."
         },
         "muktoconnect.kilo.baseUrl": {
           "type": "string",
@@ -137,7 +137,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Optional ordered fallback chain when the selected M-Kilo model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
+          "description": "Optional ordered fallback chain used only when muktoconnect.retry.autoFallback is enabled."
         },
         "muktoconnect.opencode.baseUrl": {
           "type": "string",
@@ -163,7 +163,7 @@
             "type": "string"
           },
           "default": [],
-          "description": "Optional ordered fallback chain when the selected M-OpenCode model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
+          "description": "Optional ordered fallback chain used only when muktoconnect.retry.autoFallback is enabled."
         },
         "muktoconnect.custom.baseUrl": {
           "type": "string",
@@ -189,11 +189,11 @@
             "type": "string"
           },
           "default": [],
-          "description": "Optional ordered fallback chain when the selected custom model fails. Eligible models from other configured providers are added automatically; providers without required credentials or a valid base URL are skipped."
+          "description": "Optional ordered fallback chain used only when muktoconnect.retry.autoFallback is enabled."
         },
         "muktoconnect.retry.maxAttempts": {
           "type": "number",
-          "default": 3,
+          "default": 1,
           "minimum": 1,
           "description": "Attempts per model on retryable failures (network errors, 408/409/425/429/5xx) before moving to the next fallback model."
         },
@@ -206,7 +206,12 @@
         "muktoconnect.retry.autoSwitch": {
           "type": "boolean",
           "default": true,
-          "description": "After a successful automatic switch, keep using the promoted model for later requests until it fails."
+          "description": "Prefer a previously successful fallback model for later requests. Enabled by default; set false to keep the selected model fixed."
+        },
+        "muktoconnect.retry.autoFallback": {
+          "type": "boolean",
+          "default": true,
+          "description": "Try other configured/eligible models when the selected model fails. Enabled by default; set false to keep the selected model authoritative."
         },
         "muktoconnect.request.timeoutMs": {
           "type": "number",
@@ -216,8 +221,8 @@
         },
         "muktoconnect.retry.autoContinue": {
           "type": "boolean",
-          "default": true,
-          "description": "After a text-only streamed response is interrupted, make one continuation request using the partial answer as context. Tool-call partials are never auto-continued."
+          "default": false,
+          "description": "Opt in to one continuation request after an interrupted text-only response. Disabled by default so MuktoConnect does not add extra conversation turns."
         },
         "muktoconnect.diagnostics.greetingResponse": {
           "type": "boolean",

@@ -93,6 +93,7 @@ export interface RetrySettings {
   readonly baseDelayMs: number;
   readonly autoSwitch: boolean;
   readonly autoContinue: boolean;
+  readonly autoFallback: boolean;
   readonly timeoutMs: number;
 }
 
@@ -103,10 +104,11 @@ function positiveOr(value: number | undefined, fallback: number): number {
 export function readRetrySettings(): RetrySettings {
   const cfg = vscode.workspace.getConfiguration('muktoconnect');
   return {
-    maxAttempts: Math.max(1, Math.floor(positiveOr(cfg.get<number>('retry.maxAttempts'), 3))),
+    maxAttempts: Math.max(1, Math.floor(positiveOr(cfg.get<number>('retry.maxAttempts'), 1))),
     baseDelayMs: Math.max(0, positiveOr(cfg.get<number>('retry.baseDelayMs'), 500)),
     autoSwitch: cfg.get<boolean>('retry.autoSwitch') !== false,
-    autoContinue: cfg.get<boolean>('retry.autoContinue') !== false,
+    autoContinue: cfg.get<boolean>('retry.autoContinue') === true,
+    autoFallback: cfg.get<boolean>('retry.autoFallback') !== false,
     timeoutMs: positiveOr(cfg.get<number>('request.timeoutMs'), 120000),
   };
 }
