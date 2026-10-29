@@ -401,7 +401,7 @@ async function check(route, label, fn) {
   await check('sse-ok', 'streamed SSE response is passed through', async () => {
     const parts = await run(base);
     const text = parts.map((p) => (p instanceof TextPart ? p.value : '')).join('');
-    assert.strictEqual(text, 'Hello world');
+    assert.strictEqual(text, '_Model: custom / test-model_\n\nHello world');
   });
 
   await check('sse-ok', 'requests silently cap model tools at 128 without a warning', async () => {
@@ -422,7 +422,7 @@ async function check(route, label, fn) {
   await check('json-completion', 'gateway that ignores stream:true still answers', async () => {
     const parts = await run(base);
     const text = parts.map((p) => (p instanceof TextPart ? p.value : '')).join('');
-    assert.strictEqual(text, 'Buffered answer');
+    assert.strictEqual(text, '_Model: custom / test-model_\n\nBuffered answer');
   });
 
   await check('json-error', 'JSON error body with 200 fails instead of resolving empty', async () => {
@@ -480,7 +480,7 @@ async function check(route, label, fn) {
     requestBodies.length = 0;
     const parts = await run(base);
     const text = parts.map((part) => (part instanceof TextPart ? part.value : '')).join('');
-    assert.strictEqual(text, 'Partial answer continued safely.');
+    assert.strictEqual(text, '_Model: custom / test-model_\n\nPartial answer continued safely.');
     assert.strictEqual(scenario.requests, 2, 'expected initial request plus one continuation');
     const body = JSON.parse(requestBodies[1]);
     assert.strictEqual(body.messages[1].role, 'assistant');
@@ -494,7 +494,7 @@ async function check(route, label, fn) {
     requestBodies.length = 0;
     const parts = await run(base, {}, 'paid-model');
     const text = parts.map((part) => (part instanceof TextPart ? part.value : '')).join('');
-    assert.strictEqual(text, 'Free fallback worked.');
+    assert.strictEqual(text, '_Model: custom / free-model_\n\nFree fallback worked.');
     assert.strictEqual(scenario.requests, 2, 'quota-limited model should be called once, then free fallback once');
     const bodies = requestBodies.map((body) => JSON.parse(body));
     assert.deepStrictEqual(bodies.map((body) => body.model), ['paid-model', 'free-model']);
